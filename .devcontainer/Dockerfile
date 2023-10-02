@@ -87,6 +87,6 @@ RUN echo "Installing COLMAP ver. ${COLMAP_VERSION}..." \
 	&& mkdir ./build \
 	&& cd ./build \
 	&& cmake ../ \
-	&& make -j \
+	&& make -j8 \
 	&& make install \
 	&& colmap -h

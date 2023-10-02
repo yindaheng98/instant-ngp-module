@@ -10,10 +10,14 @@ services:
     tty: true
     environment:
       NVIDIA_DRIVER_CAPABILITIES: compute,utility,graphics
-      DISPLAY: $DISPLAY
+      DISPLAY: :0
+      WAYLAND_DISPLAY: wayland-0
+      XDG_RUNTIME_DIR: /mnt/wslg/runtime-dir
+      PULSE_SERVER: /mnt/wslg/PulseServer
     volumes:
       - ../:/volume
-      - /tmp/.X11-unix:/tmp/.X11-unix
+      - \\wsl.localhost\Ubuntu\tmp\.X11-unix:/tmp/.X11-unix
+      - \\wsl.localhost\Ubuntu\mnt\wslg:/mnt/wslg
     working_dir: /volume
     command: /bin/bash
     deploy:
