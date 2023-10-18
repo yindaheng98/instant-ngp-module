@@ -49,7 +49,8 @@ RUN echo "Installing apt packages..." \
 	libreadline-gplv2-dev \
 	&& apt autoremove -y \
 	&& apt clean -y \
-	&& export DEBIAN_FRONTEND=dialog
+	&& export DEBIAN_FRONTEND=dialog \
+	&& ln -s $(which cuda-gdb) /usr/bin/gdb
 
 RUN echo "Installing Python ver. ${PYTHON_VERSION}..." \
 	&& cd /opt \
