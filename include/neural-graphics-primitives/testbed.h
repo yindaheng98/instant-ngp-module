@@ -693,6 +693,7 @@ public:
 			bool snap_to_pixel_centers = true;
 			bool train_envmap = false;
 
+			bool optimize_encoding_only = false; // yin: for ngp flow
 			bool optimize_distortion = false;
 			bool optimize_extrinsics = false;
 			bool optimize_extra_dims = false;

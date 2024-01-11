@@ -2490,6 +2490,11 @@ void Testbed::train_nerf(uint32_t target_batch_size, bool get_loss_scalar, cudaS
 
 	train_nerf_step(target_batch_size, m_nerf.training.counters_rgb, stream);
 
+	// yin: for ngp flow
+	if (m_nerf.training.optimize_encoding_only) {
+		m_nerf_network->zero_grad_density_network();
+		m_nerf_network->zero_grad_rgb_network();
+	}
 
 	m_trainer->optimizer_step(stream, LOSS_SCALE());
 

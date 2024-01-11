@@ -384,6 +384,16 @@ public:
 		params_full_precision += m_dir_encoding->n_params();
 	}
 
+	void zero_grad_density_network() { // yin: for ngp flow
+		T* grad = m_density_network->gradients();
+		if (grad == nullptr) return;
+	}
+
+	void zero_grad_rgb_network() { // yin: for ngp flow
+		T* grad = m_rgb_network->gradients();
+		if (grad == nullptr) return;
+	}
+
 	size_t n_params() const override {
 		return m_pos_encoding->n_params() + m_density_network->n_params() + m_dir_encoding->n_params() + m_rgb_network->n_params();
 	}
