@@ -77,7 +77,7 @@ template <typename T>
 void freeze_params(T* current_params, size_t n_params, T** backup_params_ptr) { // yin: for ngp flow
 	if (n_params <= 0) return;
 	if (*backup_params_ptr == nullptr) {
-		CUDA_CHECK_THROW(cudaMalloc(reinterpret_cast<void**>(backup_params_ptr), n_params * sizeof(n_params)));
+		CUDA_CHECK_THROW(cudaMalloc(reinterpret_cast<void**>(backup_params_ptr), n_params * sizeof(T)));
 		parallel_for_gpu(n_params, [b_params=*backup_params_ptr, c_params=current_params] __device__ (size_t i) {
 			b_params[i] = c_params[i];
 		});
@@ -393,6 +393,8 @@ public:
 	}
 
 	void initialize_params(pcg32& rnd, float* params_full_precision, float scale = 1) override {
+		params_fp = params_full_precision;
+
 		m_density_network->initialize_params(rnd, params_full_precision, scale);
 		params_full_precision += m_density_network->n_params();
 
@@ -406,20 +408,42 @@ public:
 		params_full_precision += m_dir_encoding->n_params();
 	}
 
+	void freeze_network_fp(size_t offset, size_t n) { // yin: for ngp flow
+		if (n <= 0) return;
+		if (backup_params_fp == nullptr) {
+			CUDA_CHECK_THROW(cudaMalloc(reinterpret_cast<void**>(&backup_params_fp), n_params() * sizeof(float)));
+			parallel_for_gpu(n, [b_params=backup_params_fp, c_params=params_fp, offset] __device__ (size_t i) {
+				b_params[i + offset] = c_params[i + offset];
+			});
+		} else {
+			parallel_for_gpu(n, [b_params=backup_params_fp, c_params=params_fp, offset] __device__ (size_t i) {
+				c_params[i + offset] = b_params[i + offset];
+			});
+		}
+	}
+
 	void freeze_density_network() { // yin: for ngp flow
 		freeze_network<T, Network<T>>(m_density_network, &backup_density_network_params, &backup_density_network_inference_params);
+		size_t offset = 0; // see above initialize_params
+		freeze_network_fp(offset, m_density_network->n_params());
 	}
 
 	void freeze_rgb_network() { // yin: for ngp flow
 		freeze_network<T, Network<T>>(m_rgb_network, &backup_rgb_network_params, &backup_rgb_network_inference_params);
+		size_t offset = m_density_network->n_params(); // see above initialize_params
+		freeze_network_fp(offset, m_rgb_network->n_params());
 	}
 
 	void freeze_pos_encoding() { // yin: for ngp flow
 		freeze_network<T, Encoding<T>>(m_pos_encoding, &backup_pos_encoding_params, &backup_pos_encoding_inference_params);
+		size_t offset = m_density_network->n_params() + m_rgb_network->n_params(); // see above initialize_params
+		freeze_network_fp(offset, m_pos_encoding->n_params());
 	}
 
 	void freeze_dir_encoding() { // yin: for ngp flow
 		freeze_network<T, Encoding<T>>(m_dir_encoding, &backup_dir_encoding_params, &backup_dir_encoding_inference_params);
+		size_t offset = m_density_network->n_params() + m_rgb_network->n_params() + m_pos_encoding->n_params(); // see above initialize_params
+		freeze_network_fp(offset, m_dir_encoding->n_params());
 	}
 
 	size_t n_params() const override {
@@ -551,6 +575,8 @@ private:
 	T* backup_dir_encoding_params = nullptr; // yin: for ngp flow
 	T* backup_dir_encoding_inference_params = nullptr; // yin: for ngp flow
 
+	float* params_fp = nullptr; // yin: for ngp flow
+	float* backup_params_fp = nullptr; // yin: for ngp flow
 };
 
 }
