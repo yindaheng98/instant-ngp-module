@@ -40,13 +40,6 @@ int main_func(const std::vector<std::string>& arguments) {
 		{'h', "help"},
 	};
 
-	ValueFlag<string> mode_flag{
-		parser,
-		"MODE",
-		"Deprecated. Do not use.",
-		{'m', "mode"},
-	};
-
 	ValueFlag<string> network_config_flag{
 		parser,
 		"CONFIG",
@@ -68,11 +61,25 @@ int main_func(const std::vector<std::string>& arguments) {
 		{"snapshot", "load_snapshot"},
 	};
 
+	ValueFlag<string> save_snapshot_flag{
+		parser,
+		"SNAPSHOT",
+		"Save snapshot after ending.",
+		{"save_snapshot"},
+	};
+
 	Flag version_flag{
 		parser,
 		"VERSION",
 		"Display the version of instant neural graphics primitives.",
 		{'v', "version"},
+	};
+
+	ValueFlag<uint32_t> step_flag{
+		parser,
+		"STEP",
+		"How many step do you want to train.",
+		{"step"},
 	};
 
 	PositionalList<string> files{
@@ -109,10 +116,6 @@ int main_func(const std::vector<std::string>& arguments) {
 		return 0;
 	}
 
-	if (mode_flag) {
-		tlog::warning() << "The '--mode' argument is no longer in use. It has no effect. The mode is automatically chosen based on the scene.";
-	}
-
 	Testbed testbed;
 
 	for (auto file : get(files)) {
@@ -132,8 +135,12 @@ int main_func(const std::vector<std::string>& arguments) {
 	testbed.m_train = true;
 
 	// Render/training loop
-	while (testbed.frame()) {
+	while (testbed.m_training_step < get(step_flag) && testbed.frame()) {
 		tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val();
+	}
+
+	if (save_snapshot_flag) {
+		testbed.save_snapshot(static_cast<fs::path>(get(save_snapshot_flag)), false, true);
 	}
 
 	return 0;
