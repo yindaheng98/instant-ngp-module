@@ -82,6 +82,13 @@ int main_func(const std::vector<std::string>& arguments) {
 		{"step"},
 	};
 
+	Flag freeze_flag{
+		parser,
+		"FREEZE",
+		"Freeze the network and only train the encoding.",
+		{"freeze"},
+	};
+
 	PositionalList<string> files{
 		parser,
 		"files",
@@ -132,9 +139,15 @@ int main_func(const std::vector<std::string>& arguments) {
 		testbed.reload_network_from_file(get(network_config_flag));
 	}
 
+	if (freeze_flag) {
+		tlog::none() << "Freeze the network and only train the encoding.";
+		testbed.freeze_network();
+	}
+
 	// Render/training loop
-	while (testbed.m_training_step < get(step_flag) && testbed.frame()) {
-		tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val();
+	for (uint32_t i = 0; i < get(step_flag); i++) {
+		if (!testbed.frame()) break;
+		tlog::info() << "current iter = " << i << '/' << get(step_flag) << " total iter = " << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val();
 	}
 
 	if (save_snapshot_flag) {
