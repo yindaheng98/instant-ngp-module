@@ -364,10 +364,6 @@ public:
 	void reload_network_from_file(const fs::path& path = "");
 	void reload_network_from_json(const nlohmann::json& json, const std::string& config_base_path=""); // config_base_path is needed so that if the passed in json uses the 'parent' feature, we know where to look... be sure to use a filename, or if a directory, end with a trailing slash
 	void reset_accumulation(bool due_to_camera_movement = false, bool immediate_redraw = true);
-	void redraw_next_frame() {
-		m_render_skip_due_to_lack_of_camera_movement_counter = 0;
-	}
-	bool reprojection_available() { return m_dlss; }
 	static ELossType string_to_loss_type(const std::string& str);
 	void reset_network(bool clear_density_grid = true);
 	void create_empty_nerf_dataset(size_t n_images, int aabb_scale = 1, bool is_hdr = false);

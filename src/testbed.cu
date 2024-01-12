@@ -44,22 +44,6 @@
 #include <set>
 #include <unordered_set>
 
-#ifdef NGP_GUI
-#	include <imgui/backends/imgui_impl_glfw.h>
-#	include <imgui/backends/imgui_impl_opengl3.h>
-#	include <imgui/imgui.h>
-#	include <imguizmo/ImGuizmo.h>
-#	ifdef _WIN32
-#		include <GL/gl3w.h>
-#	else
-#		include <GL/glew.h>
-#	endif
-#	include <GLFW/glfw3.h>
-#	include <GLFW/glfw3native.h>
-#	include <cuda_gl_interop.h>
-
-#endif
-
 // Windows.h is evil
 #undef min
 #undef max
@@ -312,85 +296,14 @@ void Testbed::load_file(const fs::path& path) {
 			reload_network_from_file(path);
 			return;
 		}
-
-		// Camera path
-		if (file.contains("path")) {
-			load_camera_path(path);
-			return;
-		}
 	}
 
 	// If the dragged file isn't any of the above, assume that it's training data
 	try {
-		bool was_training_data_available = m_training_data_available;
 		load_training_data(path);
-
-		if (!was_training_data_available) {
-			// If we previously didn't have any training data and only now dragged
-			// some into the window, it is very unlikely that the user doesn't
-			// want to immediately start training on that data. So: go for it.
-			m_train = true;
-		}
 	} catch (const std::runtime_error& e) {
 		tlog::error() << "Failed to load training data: " << e.what();
 	}
-}
-
-void Testbed::reset_accumulation(bool due_to_camera_movement, bool immediate_redraw) {
-	if (immediate_redraw) {
-		redraw_next_frame();
-	}
-
-	if (!due_to_camera_movement || !reprojection_available()) {
-		m_windowless_render_surface.reset_accumulation();
-		for (auto& view : m_views) {
-			view.render_buffer->reset_accumulation();
-		}
-	}
-}
-
-void Testbed::set_train(bool mtrain) {
-	if (m_train && !mtrain && m_max_level_rand_training) {
-		set_max_level(1.f);
-	}
-	m_train = mtrain;
-}
-
-void Testbed::compute_and_save_marching_cubes_mesh(const fs::path& filename, ivec3 res3d , BoundingBox aabb, float thresh, bool unwrap_it) {
-	mat3 render_aabb_to_local = mat3::identity();
-	if (aabb.is_empty()) {
-		aabb = m_testbed_mode == ETestbedMode::Nerf ? m_render_aabb : m_aabb;
-		render_aabb_to_local = m_render_aabb_to_local;
-	}
-	marching_cubes(res3d, aabb, render_aabb_to_local, thresh);
-	save_mesh(m_mesh.verts, m_mesh.vert_normals, m_mesh.vert_colors, m_mesh.indices, filename, unwrap_it, m_nerf.training.dataset.scale, m_nerf.training.dataset.offset);
-}
-
-ivec3 Testbed::compute_and_save_png_slices(const fs::path& filename, int res, BoundingBox aabb, float thresh, float density_range, bool flip_y_and_z_axes) {
-	mat3 render_aabb_to_local = mat3::identity();
-	if (aabb.is_empty()) {
-		aabb = m_testbed_mode == ETestbedMode::Nerf ? m_render_aabb : m_aabb;
-		render_aabb_to_local = m_render_aabb_to_local;
-	}
-	if (thresh == std::numeric_limits<float>::max()) {
-		thresh = m_mesh.thresh;
-	}
-	float range = density_range;
-	if (m_testbed_mode == ETestbedMode::Sdf) {
-		auto res3d = get_marching_cubes_res(res, aabb);
-		aabb.inflate(range * aabb.diag().x/res3d.x);
-	}
-	auto res3d = get_marching_cubes_res(res, aabb);
-	if (m_testbed_mode == ETestbedMode::Sdf) {
-		// rescale the range to be in output voxels. ie this scale factor is mapped back to the original world space distances.
-		// negated so that black = outside, white = inside
-		range *= -aabb.diag().x / res3d.x;
-	}
-
-	std::string fname = fmt::format(".density_slices_{}x{}x{}.png", res3d.x, res3d.y, res3d.z);
-	GPUMemory<float> density = (m_render_ground_truth && m_testbed_mode == ETestbedMode::Sdf) ? get_sdf_gt_on_grid(res3d, aabb, render_aabb_to_local) : get_density_on_grid(res3d, aabb, render_aabb_to_local);
-	save_density_grid_to_png(density, filename.str() + fname, res3d, thresh, flip_y_and_z_axes, range);
-	return res3d;
 }
 
 fs::path Testbed::root_dir() {
@@ -403,10 +316,6 @@ fs::path Testbed::root_dir() {
 
 void Testbed::set_root_dir(const fs::path& dir) {
 	m_root_dir = dir;
-}
-
-inline float linear_to_db(float x) {
-	return -10.f*logf(x)/logf(10.f);
 }
 
 template <typename T>
@@ -450,94 +359,8 @@ void Testbed::dump_parameters_as_images(const T* params, const std::string& file
 template void Testbed::dump_parameters_as_images<__half>(const __half*, const std::string&);
 template void Testbed::dump_parameters_as_images<float>(const float*, const std::string&);
 
-mat4x3 Testbed::crop_box(bool nerf_space) const {
-	vec3 cen = transpose(m_render_aabb_to_local) * m_render_aabb.center();
-	vec3 radius = m_render_aabb.diag() * 0.5f;
-	vec3 x = row(m_render_aabb_to_local, 0) * radius.x;
-	vec3 y = row(m_render_aabb_to_local, 1) * radius.y;
-	vec3 z = row(m_render_aabb_to_local, 2) * radius.z;
-	mat4x3 rv;
-	rv[0] = x;
-	rv[1] = y;
-	rv[2] = z;
-	rv[3] = cen;
-	if (nerf_space) {
-		rv = m_nerf.training.dataset.ngp_matrix_to_nerf(rv, true);
-	}
-	return rv;
-}
-
-void Testbed::set_crop_box(mat4x3 m, bool nerf_space) {
-	if (nerf_space) {
-		m = m_nerf.training.dataset.nerf_matrix_to_ngp(m, true);
-	}
-
-	vec3 radius{length(m[0]), length(m[1]), length(m[2])};
-	vec3 cen(m[3]);
-
-	m_render_aabb_to_local = row(m_render_aabb_to_local, 0, m[0] / radius.x);
-	m_render_aabb_to_local = row(m_render_aabb_to_local, 1, m[1] / radius.y);
-	m_render_aabb_to_local = row(m_render_aabb_to_local, 2, m[2] / radius.z);
-	cen = m_render_aabb_to_local * cen;
-	m_render_aabb.min = cen - radius;
-	m_render_aabb.max = cen + radius;
-}
-
-std::vector<vec3> Testbed::crop_box_corners(bool nerf_space) const {
-	mat4x3 m = crop_box(nerf_space);
-	std::vector<vec3> rv(8);
-	for (int i = 0; i < 8; ++i) {
-		rv[i] = m * vec4{(i & 1) ? 1.f : -1.f, (i & 2) ? 1.f : -1.f, (i & 4) ? 1.f : -1.f, 1.f};
-		/* debug print out corners to check math is all lined up */
-		if (0) {
-			tlog::info() << rv[i].x << "," << rv[i].y << "," << rv[i].z << " [" << i << "]";
-			vec3 mn = m_render_aabb.min;
-			vec3 mx = m_render_aabb.max;
-			mat3 m = transpose(m_render_aabb_to_local);
-			vec3 a;
-
-			a.x = (i&1) ? mx.x : mn.x;
-			a.y = (i&2) ? mx.y : mn.y;
-			a.z = (i&4) ? mx.z : mn.z;
-			a = m * a;
-			if (nerf_space) {
-				a = m_nerf.training.dataset.ngp_position_to_nerf(a);
-			}
-			tlog::info() << a.x << "," << a.y << "," << a.z << " [" << i << "]";
-		}
-	}
-	return rv;
-}
-
-__global__ void to_8bit_color_kernel(
-	ivec2 resolution,
-	EColorSpace output_color_space,
-	cudaSurfaceObject_t surface,
-	uint8_t* result
-) {
-	uint32_t x = threadIdx.x + blockDim.x * blockIdx.x;
-	uint32_t y = threadIdx.y + blockDim.y * blockIdx.y;
-
-	if (x >= resolution.x || y >= resolution.y) {
-		return;
-	}
-
-	vec4 color;
-	surf2Dread((float4*)&color, surface, x * sizeof(float4), y);
-
-	if (output_color_space == EColorSpace::Linear) {
-		color.rgb() = linear_to_srgb(color.rgb());
-	}
-
-	for (uint32_t i = 0; i < 3; ++i) {
-		result[(x + resolution.x * y) * 3 + i] = (uint8_t)(clamp(color[i], 0.0f, 1.0f) * 255.0f + 0.5f);
-	}
-}
-
 void Testbed::train_and_render(bool skip_rendering) {
-	if (m_train) {
-		train(m_training_batch_size);
-	}
+	train(m_training_batch_size);
 
 	// If we don't have a trainer, as can happen when having loaded training data or changed modes without having
 	// explicitly loaded a new neural network.
@@ -551,11 +374,6 @@ void Testbed::train_and_render(bool skip_rendering) {
 	if (m_mesh.optimize_mesh) {
 		optimise_mesh_step(1);
 	}
-
-	// Don't do any smoothing here if a camera path is being rendered. It'll take care
-	// of the smoothing on its own.
-	float frame_ms = m_camera_path.rendering ? 0.0f : m_frame_ms.val();
-	apply_camera_smoothing(frame_ms);
 }
 
 bool Testbed::frame() {
@@ -568,18 +386,6 @@ bool Testbed::frame() {
 	}
 	bool skip_rendering = m_render_skip_due_to_lack_of_camera_movement_counter++ != 0;
 
-	if (!m_dlss && m_max_spp > 0 && !m_views.empty() && m_views.front().render_buffer->spp() >= m_max_spp) {
-		skip_rendering = true;
-		if (!m_train) {
-			std::this_thread::sleep_for(1ms);
-		}
-	}
-
-#ifdef NGP_GUI
-	if (m_hmd && m_hmd->is_visible()) {
-		skip_rendering = false;
-	}
-#endif
 
 	if (!skip_rendering || std::chrono::steady_clock::now() - m_last_gui_draw_time_point > 50ms) {
 		redraw_gui_next_frame();
@@ -603,25 +409,6 @@ bool Testbed::frame() {
 
 fs::path Testbed::training_data_path() const {
 	return m_data_path.with_extension("training");
-}
-
-bool Testbed::want_repl() {
-	bool b = m_want_repl;
-	m_want_repl = false;
-	return b;
-}
-
-void Testbed::apply_camera_smoothing(float elapsed_ms) {
-	if (m_camera_smoothing) {
-		float decay = std::pow(0.02f, elapsed_ms/1000.0f);
-		m_smoothed_camera = camera_log_lerp(m_smoothed_camera, m_camera, 1.0f - decay);
-	} else {
-		m_smoothed_camera = m_camera;
-	}
-}
-
-void Testbed::update_loss_graph() {
-	m_loss_graph[m_loss_graph_samples++ % m_loss_graph.size()] = std::log(m_loss_scalar.val());
 }
 
 size_t Testbed::n_params() {
@@ -660,8 +447,6 @@ void Testbed::set_max_level(float maxlevel) {
 	if (hg_enc) {
 		hg_enc->set_max_level(maxlevel);
 	}
-
-	reset_accumulation();
 }
 
 ELossType Testbed::string_to_loss_type(const std::string& str) {
@@ -703,7 +488,6 @@ void Testbed::reset_network(bool clear_density_grid) {
 	// Start with a low rendering resolution and gradually ramp up
 	m_render_ms.set(10000);
 
-	reset_accumulation();
 	m_nerf.training.counters_rgb.rays_per_batch = 1 << 12;
 	m_nerf.training.counters_rgb.measured_batch_size_before_compaction = 0;
 	m_nerf.training.n_steps_since_cam_update = 0;
@@ -959,31 +743,6 @@ Testbed::Testbed(ETestbedMode mode) {
 		throw std::runtime_error{"Testbed requires CUDA 10.2 or later."};
 	}
 
-#ifdef NGP_GUI
-	// Ensure we're running on the GPU that'll host our GUI. To do so, try creating a dummy
-	// OpenGL context, figure out the GPU it's running on, and then kill that context again.
-	if (!is_wsl() && glfwInit()) {
-		glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-		GLFWwindow* offscreen_context = glfwCreateWindow(640, 480, "", NULL, NULL);
-
-		if (offscreen_context) {
-			glfwMakeContextCurrent(offscreen_context);
-
-			int gl_device = -1;
-			unsigned int device_count = 0;
-			if (cudaGLGetDevices(&device_count, &gl_device, 1, cudaGLDeviceListAll) == cudaSuccess) {
-				if (device_count > 0 && gl_device >= 0) {
-					set_cuda_device(gl_device);
-				}
-			}
-
-			glfwDestroyWindow(offscreen_context);
-		}
-
-		glfwTerminate();
-	}
-#endif
-
 	// Reset our stream, which was allocated on the originally active device,
 	// to make sure it corresponds to the now active device.
 	m_stream = {};
@@ -1115,11 +874,6 @@ void Testbed::train(uint32_t batch_size) {
 		}
 	}
 
-	if (!m_dlss) {
-		// No immediate redraw necessary
-		reset_accumulation(false, false);
-	}
-
 	uint32_t n_prep_to_skip = m_testbed_mode == ETestbedMode::Nerf ? clamp(m_training_step / 16u, 1u, 16u) : 1u;
 	if (m_training_step % n_prep_to_skip == 0) {
 		auto start = std::chrono::steady_clock::now();
@@ -1164,10 +918,6 @@ void Testbed::train(uint32_t batch_size) {
 		}
 
 		CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
-	}
-
-	if (get_loss_scalar) {
-		update_loss_graph();
 	}
 }
 
@@ -1303,9 +1053,6 @@ void Testbed::load_snapshot(nlohmann::json config) {
 	m_sun_dir = snapshot.value("sun_dir", m_sun_dir);
 	m_exposure = snapshot.value("exposure", m_exposure);
 
-#ifdef NGP_GUI
-	if (!m_hmd)
-#endif
 	m_background_color = snapshot.value("background_color", m_background_color);
 
 	if (snapshot.contains("camera")) {
@@ -1449,61 +1196,10 @@ void Testbed::sync_device(CudaRenderBuffer& render_buffer, Testbed::CudaDevice& 
 	device.signal(m_stream.get());
 }
 
-// From https://stackoverflow.com/questions/20843271/passing-a-non-copyable-closure-object-to-stdfunction-parameter
-template <class F>
-auto make_copyable_function(F&& f) {
-	using dF = std::decay_t<F>;
-	auto spf = std::make_shared<dF>(std::forward<F>(f));
-	return [spf](auto&&... args) -> decltype(auto) {
-		return (*spf)( decltype(args)(args)... );
-	};
-}
-
-ScopeGuard Testbed::use_device(cudaStream_t stream, CudaRenderBuffer& render_buffer, Testbed::CudaDevice& device) {
-	device.wait_for(stream);
-
-	if (device.is_primary()) {
-		device.set_render_buffer_view(render_buffer.view());
-		return ScopeGuard{[&device, stream]() {
-			device.set_render_buffer_view({});
-			device.signal(stream);
-		}};
-	}
-
-	int active_device = cuda_device();
-	auto guard = device.device_guard();
-
-	size_t n_pixels = product(render_buffer.in_resolution());
-
-	GPUMemoryArena::Allocation alloc;
-	auto scratch = allocate_workspace_and_distribute<vec4, float>(device.stream(), &alloc, n_pixels, n_pixels);
-
-	device.set_render_buffer_view({
-		std::get<0>(scratch),
-		std::get<1>(scratch),
-		render_buffer.in_resolution(),
-		render_buffer.spp(),
-		device.data().hidden_area_mask,
-	});
-
-	return ScopeGuard{make_copyable_function([&render_buffer, &device, guard=std::move(guard), alloc=std::move(alloc), active_device, stream]() {
-		// Copy device's render buffer's data onto the original render buffer
-		CUDA_CHECK_THROW(cudaMemcpyPeerAsync(render_buffer.frame_buffer(), active_device, device.render_buffer_view().frame_buffer, device.id(), product(render_buffer.in_resolution()) * sizeof(vec4), device.stream()));
-		CUDA_CHECK_THROW(cudaMemcpyPeerAsync(render_buffer.depth_buffer(), active_device, device.render_buffer_view().depth_buffer, device.id(), product(render_buffer.in_resolution()) * sizeof(float), device.stream()));
-
-		device.set_render_buffer_view({});
-		device.signal(stream);
-	})};
-}
-
 void Testbed::set_all_devices_dirty() {
 	for (auto& device : m_devices) {
 		device.set_dirty(true);
 	}
-}
-
-void Testbed::load_camera_path(const fs::path& path) {
-	m_camera_path.load(path, mat4x3::identity());
 }
 
 }
