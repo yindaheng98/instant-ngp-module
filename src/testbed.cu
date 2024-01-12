@@ -150,19 +150,6 @@ void Testbed::set_mode(ETestbedMode mode) {
 
 	m_testbed_mode = mode;
 
-	// Set various defaults depending on mode
-	if (m_testbed_mode == ETestbedMode::Nerf) {
-		if (m_devices.size() > 1) {
-			m_use_aux_devices = true;
-		}
-
-		if (m_dlss_provider && m_aperture_size == 0.0f) {
-			m_dlss = true;
-		}
-	} else {
-		m_use_aux_devices = false;
-		m_dlss = false;
-	}
 }
 
 fs::path Testbed::find_network_config(const fs::path& network_config_path) {
@@ -377,30 +364,9 @@ void Testbed::train_and_render(bool skip_rendering) {
 }
 
 bool Testbed::frame() {
-
-	// Render against the trained neural network. If we're training and already close to convergence,
-	// we can skip rendering if the scene camera doesn't change
-	uint32_t n_to_skip = m_train ? clamp(m_training_step / 16u, 15u, 255u) : 0;
-	if (m_render_skip_due_to_lack_of_camera_movement_counter > n_to_skip) {
-		m_render_skip_due_to_lack_of_camera_movement_counter = 0;
-	}
-	bool skip_rendering = m_render_skip_due_to_lack_of_camera_movement_counter++ != 0;
-
-
-	if (!skip_rendering || std::chrono::steady_clock::now() - m_last_gui_draw_time_point > 50ms) {
-		redraw_gui_next_frame();
-	}
-
-	try {
-		while (true) {
-			(*m_task_queue.tryPop())();
-		}
-	} catch (const SharedQueueEmptyException&) {}
-
-
-	train_and_render(skip_rendering);
+	train_and_render(true);
 	if (m_testbed_mode == ETestbedMode::Sdf && m_sdf.calculate_iou_online) {
-		m_sdf.iou = calculate_iou(m_train ? 64*64*64 : 128*128*128, m_sdf.iou_decay, false, true);
+		m_sdf.iou = calculate_iou(64*64*64, m_sdf.iou_decay, false, true);
 		m_sdf.iou_decay = 0.f;
 	}
 
@@ -485,9 +451,6 @@ void Testbed::reset_network(bool clear_density_grid) {
 
 	m_rng = default_rng_t{m_seed};
 
-	// Start with a low rendering resolution and gradually ramp up
-	m_render_ms.set(10000);
-
 	m_nerf.training.counters_rgb.rays_per_batch = 1 << 12;
 	m_nerf.training.counters_rgb.measured_batch_size_before_compaction = 0;
 	m_nerf.training.n_steps_since_cam_update = 0;
@@ -505,8 +468,6 @@ void Testbed::reset_network(bool clear_density_grid) {
 
 		set_all_devices_dirty();
 	}
-
-	m_loss_graph_samples = 0;
 
 	// Default config
 	json config = m_network_config;
@@ -545,9 +506,6 @@ void Testbed::reset_network(bool clear_density_grid) {
 		} else {
 			m_n_levels = encoding_config.value("n_levels", 16u);
 		}
-
-		m_level_stats.resize(m_n_levels);
-		m_first_layer_column_stats.resize(m_n_levels);
 
 		const uint32_t log2_hashmap_size = encoding_config.value("log2_hashmap_size", 15);
 
@@ -813,7 +771,6 @@ Testbed::Testbed(ETestbedMode mode) {
 	};
 
 	set_mode(mode);
-	set_exposure(0);
 	set_max_level(1.f);
 }
 
@@ -824,8 +781,6 @@ Testbed::~Testbed() {
 }
 
 bool Testbed::clear_tmp_dir() {
-	wait_all(m_render_futures);
-	m_render_futures.clear();
 
 	bool success = true;
 	auto tmp_dir = fs::path{"tmp"};
@@ -845,8 +800,8 @@ bool Testbed::clear_tmp_dir() {
 }
 
 void Testbed::train(uint32_t batch_size) {
-	if (!m_training_data_available || m_camera_path.rendering) {
-		m_train = false;
+	if (!m_training_data_available) {
+		tlog::warning() << "No dataset. Aborting training.";
 		return;
 	}
 
@@ -897,8 +852,6 @@ void Testbed::train(uint32_t batch_size) {
 	while (leaf_optimizer_config->contains("nested")) {
 		leaf_optimizer_config = &(*leaf_optimizer_config)["nested"];
 	}
-	(*leaf_optimizer_config)["optimize_matrix_params"] = m_train_network;
-	(*leaf_optimizer_config)["optimize_non_matrix_params"] = m_train_encoding;
 	m_optimizer->update_hyperparams(m_network_config["optimizer"]);
 
 	bool get_loss_scalar = m_training_step % 16 == 0;
@@ -955,19 +908,12 @@ void Testbed::save_snapshot(const fs::path& path, bool include_optimizer_state, 
 	snapshot["render_aabb"] = m_render_aabb;
 	snapshot["up_dir"] = m_up_dir;
 	snapshot["sun_dir"] = m_sun_dir;
-	snapshot["exposure"] = m_exposure;
 	snapshot["background_color"] = m_background_color;
 
-	snapshot["camera"]["matrix"] = m_camera;
-	snapshot["camera"]["fov_axis"] = m_fov_axis;
-	snapshot["camera"]["relative_focal_length"] = m_relative_focal_length;
 	snapshot["camera"]["screen_center"] = m_screen_center;
-	snapshot["camera"]["zoom"] = m_zoom;
 	snapshot["camera"]["scale"] = m_scale;
 
 	snapshot["camera"]["aperture_size"] = m_aperture_size;
-	snapshot["camera"]["autofocus"] = m_autofocus;
-	snapshot["camera"]["autofocus_target"] = m_autofocus_target;
 	snapshot["camera"]["autofocus_depth"] = m_slice_plane_z;
 
 	if (m_testbed_mode == ETestbedMode::Nerf) {
@@ -1051,16 +997,11 @@ void Testbed::load_snapshot(nlohmann::json config) {
 
 	// Needs to happen after `load_nerf_post()`
 	m_sun_dir = snapshot.value("sun_dir", m_sun_dir);
-	m_exposure = snapshot.value("exposure", m_exposure);
 
 	m_background_color = snapshot.value("background_color", m_background_color);
 
 	if (snapshot.contains("camera")) {
-		m_camera = snapshot["camera"].value("matrix", m_camera);
-		m_fov_axis = snapshot["camera"].value("fov_axis", m_fov_axis);
-		if (snapshot["camera"].contains("relative_focal_length")) from_json(snapshot["camera"]["relative_focal_length"], m_relative_focal_length);
 		if (snapshot["camera"].contains("screen_center")) from_json(snapshot["camera"]["screen_center"], m_screen_center);
-		m_zoom = snapshot["camera"].value("zoom", m_zoom);
 		m_scale = snapshot["camera"].value("scale", m_scale);
 
 		m_aperture_size = snapshot["camera"].value("aperture_size", m_aperture_size);
@@ -1068,8 +1009,6 @@ void Testbed::load_snapshot(nlohmann::json config) {
 			m_dlss = false;
 		}
 
-		m_autofocus = snapshot["camera"].value("autofocus", m_autofocus);
-		if (snapshot["camera"].contains("autofocus_target")) from_json(snapshot["camera"]["autofocus_target"], m_autofocus_target);
 		m_slice_plane_z = snapshot["camera"].value("autofocus_depth", m_slice_plane_z);
 	}
 
@@ -1130,7 +1069,6 @@ Testbed::CudaDevice::CudaDevice(int id, bool is_primary) : m_id{id}, m_is_primar
 	auto guard = device_guard();
 	m_stream = std::make_unique<StreamAndEvent>();
 	m_data = std::make_unique<Data>();
-	m_render_worker = std::make_unique<ThreadPool>(is_primary ? 0u : 1u);
 }
 
 ScopeGuard Testbed::CudaDevice::device_guard() {

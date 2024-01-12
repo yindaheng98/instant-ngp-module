@@ -2513,7 +2513,6 @@ void Testbed::train_nerf(uint32_t target_batch_size, bool get_loss_scalar, cudaS
 	if (zero_records) {
 		m_loss_scalar.set(0.f);
 		tlog::warning() << "Nerf training generated 0 samples. Aborting training.";
-		m_train = false;
 	}
 
 	// Compute CDFs from the error map

@@ -132,8 +132,6 @@ int main_func(const std::vector<std::string>& arguments) {
 		testbed.reload_network_from_file(get(network_config_flag));
 	}
 
-	testbed.m_train = true;
-
 	// Render/training loop
 	while (testbed.m_training_step < get(step_flag) && testbed.frame()) {
 		tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val();
