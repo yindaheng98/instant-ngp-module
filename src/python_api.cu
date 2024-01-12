@@ -42,6 +42,26 @@ namespace py = pybind11;
 
 namespace ngp {
 
+void Testbed::load_params(py::array_t<float> params, py::array_t<int> index) { // yin: for ngp flow
+	py::buffer_info params_buf = params.request();
+	py::buffer_info index_buf = index.request();
+
+	if (params_buf.ndim != 1 || index_buf.ndim != 1 || params_buf.shape[0] != index_buf.shape[0]) {
+		tlog::error() << "Invalid Params<->Index data";
+		return;
+	}
+	std::vector<float> params_cpu(params_buf.shape[0]);
+	std::vector<int> index_cpu(index_buf.shape[0]);
+
+	for (size_t i = 0; i < index_cpu.size(); i++) {
+		int idx = *((int*)index_buf.ptr + i);
+		float param = *((float*)params_buf.ptr + i);
+		index_cpu[i] = idx;
+		params_cpu[i] = param;
+	}
+	set_params(params_cpu, index_cpu);
+}
+
 void Testbed::Nerf::Training::set_image(int frame_idx, pybind11::array_t<float> img, pybind11::array_t<float> depth_img, float depth_scale) {
 	if (frame_idx < 0 || frame_idx >= dataset.n_images) {
 		throw std::runtime_error{"Invalid frame index"};
@@ -434,6 +454,7 @@ PYBIND11_MODULE(pyngp, m) {
 			py::arg("config_base_path") = ""
 		)
 		.def("override_sdf_training_data", &Testbed::override_sdf_training_data, "Override the training data for learning a signed distance function")
+		.def("load_params", &Testbed::load_params, "Load params at any time.")
 		.def("calculate_iou", &Testbed::calculate_iou, "Calculate the intersection over union error value",
 			py::arg("n_samples") = 128*1024*1024,
 			py::arg("scale_existing_results_factor") = 0.0f,

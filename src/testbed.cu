@@ -4893,6 +4893,12 @@ void Testbed::load_snapshot(std::istream& stream, bool is_compressed) {
 	m_network_config_path = "";
 }
 
+void Testbed::set_params(std::vector<float> params, std::vector<int> index) {
+	for (size_t i = 0; i < index.size(); i++) {
+		tlog::info() << params[i] << ' ' << index[i];
+	}
+}
+
 Testbed::CudaDevice::CudaDevice(int id, bool is_primary) : m_id{id}, m_is_primary{is_primary} {
 	auto guard = device_guard();
 	m_stream = std::make_unique<StreamAndEvent>();
