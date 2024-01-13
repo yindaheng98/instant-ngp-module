@@ -91,3 +91,5 @@ RUN echo "Installing COLMAP ver. ${COLMAP_VERSION}..." \
 	&& make -j8 \
 	&& make install \
 	&& colmap -h
+
+RUN pip install pymongo
