@@ -50,9 +50,7 @@ void Testbed::load_params(py::array_t<float> params, py::array_t<int> index) { /
 		tlog::error() << "Invalid Params<->Index data";
 		return;
 	}
-	std::vector<float> params_cpu(params_buf.shape[0]);
-	std::vector<int> index_cpu(index_buf.shape[0]);
-	set_params(static_cast<float*>(params_buf.ptr), static_cast<int*>(index_buf.ptr), index_cpu.size());
+	set_params(static_cast<float*>(params_buf.ptr), static_cast<int*>(index_buf.ptr), index_buf.shape[0]);
 }
 
 void Testbed::Nerf::Training::set_image(int frame_idx, pybind11::array_t<float> img, pybind11::array_t<float> depth_img, float depth_scale) {
