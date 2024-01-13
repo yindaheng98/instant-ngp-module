@@ -1214,6 +1214,8 @@ public:
 	} m_distortion;
 
 	std::shared_ptr<NerfNetwork<network_precision_t>> m_nerf_network;
+	GPUMemory<float> params_gpu; // yin: for ngp flow
+	GPUMemory<int> index_gpu; // yin: for ngp flow
 };
 
 }
