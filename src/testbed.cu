@@ -175,11 +175,11 @@ json Testbed::load_network_config(std::istream& stream, bool is_compressed) {
 		zstr::istream zstream{stream};
 		return json::from_msgpack(zstream);
 	}
-	return json::from_msgpack(stream);
+	return json::from_bson(stream);
 }
 
 json Testbed::load_network_config(const fs::path& network_config_path) {
-	bool is_snapshot = equals_case_insensitive(network_config_path.extension(), "msgpack") || equals_case_insensitive(network_config_path.extension(), "ingp");
+	bool is_snapshot = equals_case_insensitive(network_config_path.extension(), "bson") || equals_case_insensitive(network_config_path.extension(), "ingp");
 	if (network_config_path.empty() || !network_config_path.exists()) {
 		throw std::runtime_error{fmt::format("Network {} '{}' does not exist.", is_snapshot ? "snapshot" : "config", network_config_path.str())};
 	}
@@ -193,6 +193,8 @@ json Testbed::load_network_config(const fs::path& network_config_path) {
 			// zstr::ifstream applies zlib compression.
 			zstr::istream zf{f};
 			result = json::from_msgpack(zf);
+		} else if (equals_case_insensitive(network_config_path.extension(), "bson")) {
+			result = json::from_bson(f);
 		} else {
 			result = json::from_msgpack(f);
 		}
@@ -225,7 +227,7 @@ void Testbed::reload_network_from_file(const fs::path& path) {
 	}
 
 	fs::path full_network_config_path = find_network_config(m_network_config_path);
-	bool is_snapshot = equals_case_insensitive(full_network_config_path.extension(), "msgpack");
+	bool is_snapshot = equals_case_insensitive(full_network_config_path.extension(), "bson");
 
 	if (!full_network_config_path.exists()) {
 		tlog::warning() << "Network " << (is_snapshot ? "snapshot" : "config") << " path '" << full_network_config_path << "' does not exist.";
@@ -259,7 +261,7 @@ void Testbed::load_file(const fs::path& path) {
 		return;
 	}
 
-	if (equals_case_insensitive(path.extension(), "ingp") || equals_case_insensitive(path.extension(), "msgpack")) {
+	if (equals_case_insensitive(path.extension(), "ingp") || equals_case_insensitive(path.extension(), "bson")) {
 		load_snapshot(path);
 		return;
 	}
@@ -935,6 +937,8 @@ void Testbed::save_snapshot(const fs::path& path, bool include_optimizer_state, 
 		// zstr::ofstream applies zlib compression.
 		zstr::ostream zf{f, zstr::default_buff_size, compress ? Z_DEFAULT_COMPRESSION : Z_NO_COMPRESSION};
 		json::to_msgpack(m_network_config, zf);
+	} else if (equals_case_insensitive(m_network_config_path.extension(), "bson")) {
+		json::to_bson(m_network_config, f);
 	} else {
 		json::to_msgpack(m_network_config, f);
 	}

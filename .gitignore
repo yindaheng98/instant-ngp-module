@@ -13,7 +13,7 @@
 /*.exe
 /*.json
 *.ingp
-*.msgpack
+*.bson
 *.training
 __pycache__
 .DS_Store
