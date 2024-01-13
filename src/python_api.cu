@@ -52,14 +52,7 @@ void Testbed::load_params(py::array_t<float> params, py::array_t<int> index) { /
 	}
 	std::vector<float> params_cpu(params_buf.shape[0]);
 	std::vector<int> index_cpu(index_buf.shape[0]);
-
-	for (size_t i = 0; i < index_cpu.size(); i++) {
-		int idx = *((int*)index_buf.ptr + i);
-		float param = *((float*)params_buf.ptr + i);
-		index_cpu[i] = idx;
-		params_cpu[i] = param;
-	}
-	set_params(params_cpu, index_cpu);
+	set_params(static_cast<float*>(params_buf.ptr), static_cast<int*>(index_buf.ptr), index_cpu.size());
 }
 
 void Testbed::Nerf::Training::set_image(int frame_idx, pybind11::array_t<float> img, pybind11::array_t<float> depth_img, float depth_scale) {

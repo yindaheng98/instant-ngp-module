@@ -4893,22 +4893,22 @@ void Testbed::load_snapshot(std::istream& stream, bool is_compressed) {
 	m_network_config_path = "";
 }
 
-void Testbed::set_params(std::vector<float> params_cpu, std::vector<int> index_cpu) { // yin: for ngp flow
-	int n = (int)(n_params());
-	params_gpu.resize(index_cpu.size() * sizeof(float));
-	params_gpu.copy_from_host(params_cpu.data());
-	index_gpu.resize(index_cpu.size() * sizeof(int));
-	index_gpu.copy_from_host(index_cpu.data());
+void Testbed::set_params(float* params_cpu, int* index_cpu, size_t n) { // yin: for ngp flow
+	int m = (int)(n_params());
+	params_gpu.resize(n * sizeof(float));
+	params_gpu.copy_from_host(params_cpu);
+	index_gpu.resize(n * sizeof(int));
+	index_gpu.copy_from_host(index_cpu);
 	if (m_network->params() != nullptr){
-		parallel_for_gpu(m_stream.get(), index_cpu.size(), [local_params=m_network->params(), params=params_gpu.data(), index=index_gpu.data(), n] __device__ (size_t i) {
+		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->params(), params=params_gpu.data(), index=index_gpu.data(), m] __device__ (size_t i) {
 			int idx = index[i];
-			if (idx < n) local_params[idx] = (network_precision_t)params[idx];
+			if (idx < m) local_params[idx] = (network_precision_t)params[idx];
 		});
 	}
 	if (m_network->inference_params() != nullptr && m_network->inference_params() != m_network->params()) {
-		parallel_for_gpu(m_stream.get(), index_cpu.size(), [local_params=m_network->inference_params(), params=params_gpu.data(), index=index_gpu.data(), n] __device__ (size_t i) {
+		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->inference_params(), params=params_gpu.data(), index=index_gpu.data(), m] __device__ (size_t i) {
 			int idx = index[i];
-			if (idx < n) local_params[idx] = (network_precision_t)params[idx];
+			if (idx < m) local_params[idx] = (network_precision_t)params[idx];
 		});
 	}
 }

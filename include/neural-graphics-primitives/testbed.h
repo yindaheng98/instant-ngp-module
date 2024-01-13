@@ -458,7 +458,7 @@ public:
 	void override_sdf_training_data(pybind11::array_t<float> points, pybind11::array_t<float> distances);
 	void load_params(pybind11::array_t<float> params, pybind11::array_t<int> index);
 #endif
-	void set_params(std::vector<float> params, std::vector<int> index);
+	void set_params(float* params, int* index, size_t n);
 
 	double calculate_iou(uint32_t n_samples=128*1024*1024, float scale_existing_results_factor=0.0, bool blocking=true, bool force_use_octree = true);
 	void draw_visualizations(ImDrawList* list, const mat4x3& camera_matrix);
