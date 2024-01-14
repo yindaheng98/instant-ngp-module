@@ -4915,6 +4915,24 @@ void Testbed::set_params(float* params_cpu, int* index_cpu, size_t n) { // yin: 
 	}
 }
 
+void Testbed::set_density_grid(float* density_grid_cpu, int* index_cpu, size_t n) { // yin: for ngp flow
+	size_t m = NERF_GRID_N_CELLS() * (m_nerf.max_cascade + 1);
+	density_grid_gpu.resize(n * sizeof(float));
+	density_grid_gpu.copy_from_host(density_grid_cpu);
+	index_gpu.resize(n * sizeof(int));
+	index_gpu.copy_from_host(index_cpu);
+	parallel_for_gpu(m_stream.get(), n, [local_density_grid=m_nerf.density_grid.data(), density_grid=density_grid_gpu.data(), index=index_gpu.data(), m] __device__ (size_t i) {
+		if (index[i] < m) local_density_grid[index[i]] = density_grid[i];
+	});
+
+	if (m_nerf.density_grid.size() == NERF_GRID_N_CELLS() * (m_nerf.max_cascade + 1)) {
+		update_density_grid_mean_and_bitfield(nullptr);
+	} else if (m_nerf.density_grid.size() != 0) {
+		// A size of 0 indicates that the density grid was never populated, which is a valid state of a (yet) untrained model.
+		throw std::runtime_error{"Incompatible number of grid cascades."};
+	}
+}
+
 Testbed::CudaDevice::CudaDevice(int id, bool is_primary) : m_id{id}, m_is_primary{is_primary} {
 	auto guard = device_guard();
 	m_stream = std::make_unique<StreamAndEvent>();
