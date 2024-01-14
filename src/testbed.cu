@@ -4897,31 +4897,37 @@ void Testbed::load_snapshot(std::istream& stream, bool is_compressed) {
 	m_network_config_path = "";
 }
 
+void Testbed::set_params_load_cache_size(size_t size) { // yin: for ngp flow
+	params_gpu.resize(size * sizeof(float));
+	params_index_gpu.resize(size * sizeof(int));
+}
+
 void Testbed::set_params(float* params_cpu, int* index_cpu, size_t n) { // yin: for ngp flow
 	size_t m = n_params();
-	params_gpu.resize(n * sizeof(float));
-	params_gpu.copy_from_host(params_cpu);
-	index_gpu.resize(n * sizeof(int));
-	index_gpu.copy_from_host(index_cpu);
+	CUDA_CHECK_THROW(cudaMemcpyAsync(params_gpu.data(), params_cpu, params_gpu.size(), cudaMemcpyHostToDevice, m_stream.get()));
+	CUDA_CHECK_THROW(cudaMemcpyAsync(params_index_gpu.data(), index_cpu, params_index_gpu.size(), cudaMemcpyHostToDevice, m_stream.get()));
 	if (m_network->params() != nullptr){
-		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->params(), params=params_gpu.data(), index=index_gpu.data(), m] __device__ (size_t i) {
+		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->params(), params=params_gpu.data(), index=params_index_gpu.data(), m] __device__ (size_t i) {
 			if (index[i] < m) local_params[index[i]] = (network_precision_t)params[i];
 		});
 	}
 	if (m_network->inference_params() != nullptr && m_network->inference_params() != m_network->params()) {
-		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->inference_params(), params=params_gpu.data(), index=index_gpu.data(), m] __device__ (size_t i) {
+		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->inference_params(), params=params_gpu.data(), index=params_index_gpu.data(), m] __device__ (size_t i) {
 			if (index[i] < m) local_params[index[i]] = (network_precision_t)params[i];
 		});
 	}
 }
 
+void Testbed::set_density_grid_load_cache_size(size_t size) { // yin: for ngp flow
+	density_grid_gpu.resize(size * sizeof(float));
+	density_grid_index_gpu.resize(size * sizeof(int));
+}
+
 void Testbed::set_density_grid(float* density_grid_cpu, int* index_cpu, size_t n) { // yin: for ngp flow
 	size_t m = NERF_GRID_N_CELLS() * (m_nerf.max_cascade + 1);
-	density_grid_gpu.resize(n * sizeof(float));
-	density_grid_gpu.copy_from_host(density_grid_cpu);
-	index_gpu.resize(n * sizeof(int));
-	index_gpu.copy_from_host(index_cpu);
-	parallel_for_gpu(m_stream.get(), n, [local_density_grid=m_nerf.density_grid.data(), density_grid=density_grid_gpu.data(), index=index_gpu.data(), m] __device__ (size_t i) {
+	CUDA_CHECK_THROW(cudaMemcpyAsync(density_grid_gpu.data(), density_grid_cpu, density_grid_gpu.size(), cudaMemcpyHostToDevice, m_stream.get()));
+	CUDA_CHECK_THROW(cudaMemcpyAsync(density_grid_index_gpu.data(), index_cpu, density_grid_index_gpu.size(), cudaMemcpyHostToDevice, m_stream.get()));
+	parallel_for_gpu(m_stream.get(), n, [local_density_grid=m_nerf.density_grid.data(), density_grid=density_grid_gpu.data(), index=density_grid_index_gpu.data(), m] __device__ (size_t i) {
 		if (index[i] < m) local_density_grid[index[i]] = density_grid[i];
 	});
 

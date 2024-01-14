@@ -458,6 +458,8 @@ PYBIND11_MODULE(pyngp, m) {
 		.def("override_sdf_training_data", &Testbed::override_sdf_training_data, "Override the training data for learning a signed distance function")
 		.def("load_params", &Testbed::load_params, "Load params at any time.")
 		.def("load_density_grid", &Testbed::load_density_grid, "Load density grid at any time.")
+		.def("set_params_load_cache_size", &Testbed::set_params_load_cache_size, "Load params at any time.")
+		.def("set_density_grid_load_cache_size", &Testbed::set_density_grid_load_cache_size, "Load density grid at any time.")
 		.def("calculate_iou", &Testbed::calculate_iou, "Calculate the intersection over union error value",
 			py::arg("n_samples") = 128*1024*1024,
 			py::arg("scale_existing_results_factor") = 0.0f,
