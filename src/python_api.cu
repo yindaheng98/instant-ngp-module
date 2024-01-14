@@ -53,6 +53,17 @@ void Testbed::load_params(py::array_t<float> params, py::array_t<int> index) { /
 	set_params(static_cast<float*>(params_buf.ptr), static_cast<int*>(index_buf.ptr), index_buf.shape[0]);
 }
 
+void Testbed::load_density_grid(pybind11::array_t<float> density_grid, pybind11::array_t<int> index) { // yin: for ngp flow
+	py::buffer_info density_grid_buf = density_grid.request();
+	py::buffer_info index_buf = index.request();
+
+	if (density_grid_buf.ndim != 1 || index_buf.ndim != 1 || density_grid_buf.shape[0] != index_buf.shape[0]) {
+		tlog::error() << "Invalid Density_grid<->Index data";
+		return;
+	}
+	set_density_grid(static_cast<float*>(density_grid_buf.ptr), static_cast<int*>(index_buf.ptr), index_buf.shape[0]);
+}
+
 void Testbed::Nerf::Training::set_image(int frame_idx, pybind11::array_t<float> img, pybind11::array_t<float> depth_img, float depth_scale) {
 	if (frame_idx < 0 || frame_idx >= dataset.n_images) {
 		throw std::runtime_error{"Invalid frame index"};
@@ -446,6 +457,7 @@ PYBIND11_MODULE(pyngp, m) {
 		)
 		.def("override_sdf_training_data", &Testbed::override_sdf_training_data, "Override the training data for learning a signed distance function")
 		.def("load_params", &Testbed::load_params, "Load params at any time.")
+		.def("load_density_grid", &Testbed::load_density_grid, "Load density grid at any time.")
 		.def("calculate_iou", &Testbed::calculate_iou, "Calculate the intersection over union error value",
 			py::arg("n_samples") = 128*1024*1024,
 			py::arg("scale_existing_results_factor") = 0.0f,
