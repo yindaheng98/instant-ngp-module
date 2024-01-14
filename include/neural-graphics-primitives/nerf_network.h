@@ -74,17 +74,25 @@ __global__ void add_density_gradient(
 }
 
 template <typename T>
-void freeze_params(T* current_params, size_t n_params, T** backup_params_ptr) { // yin: for ngp flow
+void save_params(T* current_params, size_t n_params, T** backup_params_ptr) { // yin: for ngp flow
 	if (n_params <= 0) return;
 	if (*backup_params_ptr == nullptr) {
 		CUDA_CHECK_THROW(cudaMalloc(reinterpret_cast<void**>(backup_params_ptr), n_params * sizeof(T)));
 		parallel_for_gpu(n_params, [b_params=*backup_params_ptr, c_params=current_params] __device__ (size_t i) {
 			b_params[i] = c_params[i];
 		});
-	} else {
+	}
+}
+
+template <typename T>
+void freeze_params(T* current_params, size_t n_params, T** backup_params_ptr) { // yin: for ngp flow
+	if (n_params <= 0) return;
+	if (*backup_params_ptr != nullptr) {
 		parallel_for_gpu(n_params, [b_params=*backup_params_ptr, c_params=current_params] __device__ (size_t i) {
 			c_params[i] = b_params[i];
 		});
+	} else {
+		save_params(current_params, n_params, backup_params_ptr);
 	}
 }
 
@@ -93,6 +101,13 @@ void freeze_network(std::shared_ptr<N> m_network, T** backup_params_ptr, T** bac
 	freeze_params<T>(m_network->params(), m_network->n_params(), backup_params_ptr);
 	if (m_network->inference_params() != m_network->params())
 		freeze_params<T>(m_network->inference_params(), m_network->n_params(), backup_inference_params_ptr);
+}
+
+template <typename T, typename N>
+void save_network(std::shared_ptr<N> m_network, T** backup_params_ptr, T** backup_inference_params_ptr) { // yin: for ngp flow
+	save_params<T>(m_network->params(), m_network->n_params(), backup_params_ptr);
+	if (m_network->inference_params() != m_network->params())
+		save_params<T>(m_network->inference_params(), m_network->n_params(), backup_inference_params_ptr);
 }
 
 template <typename T>
@@ -408,18 +423,31 @@ public:
 		params_full_precision += m_dir_encoding->n_params();
 	}
 
-	void freeze_network_fp(size_t offset, size_t n) { // yin: for ngp flow
+	void save_network_fp(size_t offset, size_t n) { // yin: for ngp flow
 		if (n <= 0) return;
 		if (backup_params_fp == nullptr) {
 			CUDA_CHECK_THROW(cudaMalloc(reinterpret_cast<void**>(&backup_params_fp), n_params() * sizeof(float)));
 			parallel_for_gpu(n, [b_params=backup_params_fp, c_params=params_fp, offset] __device__ (size_t i) {
 				b_params[i + offset] = c_params[i + offset];
 			});
-		} else {
+		}
+	}
+
+	void freeze_network_fp(size_t offset, size_t n) { // yin: for ngp flow
+		if (n <= 0) return;
+		if (backup_params_fp != nullptr) {
 			parallel_for_gpu(n, [b_params=backup_params_fp, c_params=params_fp, offset] __device__ (size_t i) {
 				c_params[i + offset] = b_params[i + offset];
 			});
+		} else {
+			save_network_fp(offset, n);
 		}
+	}
+
+	void save_density_network() { // yin: for ngp flow
+		save_network<T, Network<T>>(m_density_network, &backup_density_network_params, &backup_density_network_inference_params);
+		size_t offset = 0; // see above initialize_params
+		save_network_fp(offset, m_density_network->n_params());
 	}
 
 	void freeze_density_network() { // yin: for ngp flow
@@ -428,16 +456,34 @@ public:
 		freeze_network_fp(offset, m_density_network->n_params());
 	}
 
+	void save_rgb_network() { // yin: for ngp flow
+		save_network<T, Network<T>>(m_rgb_network, &backup_rgb_network_params, &backup_rgb_network_inference_params);
+		size_t offset = m_density_network->n_params(); // see above initialize_params
+		save_network_fp(offset, m_rgb_network->n_params());
+	}
+
 	void freeze_rgb_network() { // yin: for ngp flow
 		freeze_network<T, Network<T>>(m_rgb_network, &backup_rgb_network_params, &backup_rgb_network_inference_params);
 		size_t offset = m_density_network->n_params(); // see above initialize_params
 		freeze_network_fp(offset, m_rgb_network->n_params());
 	}
 
+	void save_pos_encoding() { // yin: for ngp flow
+		save_network<T, Encoding<T>>(m_pos_encoding, &backup_pos_encoding_params, &backup_pos_encoding_inference_params);
+		size_t offset = m_density_network->n_params() + m_rgb_network->n_params(); // see above initialize_params
+		save_network_fp(offset, m_pos_encoding->n_params());
+	}
+
 	void freeze_pos_encoding() { // yin: for ngp flow
 		freeze_network<T, Encoding<T>>(m_pos_encoding, &backup_pos_encoding_params, &backup_pos_encoding_inference_params);
 		size_t offset = m_density_network->n_params() + m_rgb_network->n_params(); // see above initialize_params
 		freeze_network_fp(offset, m_pos_encoding->n_params());
+	}
+
+	void save_dir_encoding() { // yin: for ngp flow
+		save_network<T, Encoding<T>>(m_dir_encoding, &backup_dir_encoding_params, &backup_dir_encoding_inference_params);
+		size_t offset = m_density_network->n_params() + m_rgb_network->n_params() + m_pos_encoding->n_params(); // see above initialize_params
+		save_network_fp(offset, m_dir_encoding->n_params());
 	}
 
 	void freeze_dir_encoding() { // yin: for ngp flow
