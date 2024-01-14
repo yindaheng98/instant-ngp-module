@@ -459,17 +459,17 @@ public:
 	void load_params(pybind11::array_t<float> params, pybind11::array_t<int> index); // yin: for ngp flow
 	void load_density_grid(pybind11::array_t<float> density_grid, pybind11::array_t<int> index); // yin: for ngp flow
 #endif
-
 	void set_params(float* params, int* index, size_t n); // yin: for ngp flow
+	void set_params_load_cache_size(size_t size); // yin: for ngp flow
+	void set_density_grid(float* density_grid, int* index, size_t n); // yin: for ngp flow
+	void set_density_grid_load_cache_size(size_t size); // yin: for ngp flow
+private:
 	GPUMemory<float> params_gpu; // yin: for ngp flow
 	GPUMemory<int> params_index_gpu; // yin: for ngp flow
-	void set_params_load_cache_size(size_t size); // yin: for ngp flow
-
-	void set_density_grid(float* density_grid, int* index, size_t n); // yin: for ngp flow
 	GPUMemory<float> density_grid_gpu; // yin: for ngp flow
 	GPUMemory<int> density_grid_index_gpu; // yin: for ngp flow
-	void set_density_grid_load_cache_size(size_t size); // yin: for ngp flow
 
+public:
 	double calculate_iou(uint32_t n_samples=128*1024*1024, float scale_existing_results_factor=0.0, bool blocking=true, bool force_use_octree = true);
 	void draw_visualizations(ImDrawList* list, const mat4x3& camera_matrix);
 	void train_and_render(bool skip_rendering);
