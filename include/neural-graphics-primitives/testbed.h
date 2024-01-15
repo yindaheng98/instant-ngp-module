@@ -457,11 +457,15 @@ public:
 	pybind11::array_t<float> screenshot(bool linear, bool front_buffer) const;
 	void override_sdf_training_data(pybind11::array_t<float> points, pybind11::array_t<float> distances);
 	void load_params(pybind11::array_t<float> params, pybind11::array_t<int> index); // yin: for ngp flow
+	void diff_params(pybind11::array_t<float> params_diff, pybind11::array_t<int> index); // yin: for ngp flow
 	void load_density_grid(pybind11::array_t<float> density_grid, pybind11::array_t<int> index); // yin: for ngp flow
+	void diff_density_grid(pybind11::array_t<float> density_grid_diff, pybind11::array_t<int> index); // yin: for ngp flow
 #endif
 	void set_params(float* params, int* index, size_t n); // yin: for ngp flow
+	void add_params(float* params, int* index, size_t n); // yin: for ngp flow
 	void set_params_load_cache_size(size_t size); // yin: for ngp flow
 	void set_density_grid(float* density_grid, int* index, size_t n); // yin: for ngp flow
+	void add_density_grid(float* density_grid, int* index, size_t n); // yin: for ngp flow
 	void set_density_grid_load_cache_size(size_t size); // yin: for ngp flow
 private:
 	GPUMemory<float> params_gpu; // yin: for ngp flow

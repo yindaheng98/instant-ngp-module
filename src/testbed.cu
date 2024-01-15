@@ -4928,6 +4928,32 @@ void Testbed::set_params(float* params_cpu, int* index_cpu, size_t n) { // yin: 
 	}
 }
 
+void Testbed::add_params(float* params_cpu, int* index_cpu, size_t n) { // yin: for ngp flow
+	size_t cache_size = params_gpu.size() / sizeof(float);
+	if (cache_size != params_index_gpu.size() / sizeof(int)) {
+		throw std::runtime_error{"size of params_gpu and params_index_gpu not match."};
+	}
+	size_t m = n_params();
+	for (size_t i = 0; i <= n / cache_size; i++) {
+		size_t start = i*cache_size;
+		size_t end = (start+cache_size)<n?(start+cache_size):n;
+		if (start >= end) break;
+		size_t length = end-start;
+		CUDA_CHECK_THROW(cudaMemcpyAsync(params_gpu.data(), &params_cpu[start], length*sizeof(float), cudaMemcpyHostToDevice, m_stream.get()));
+		CUDA_CHECK_THROW(cudaMemcpyAsync(params_index_gpu.data(), &index_cpu[start], length*sizeof(int), cudaMemcpyHostToDevice, m_stream.get()));
+		if (m_network->params() != nullptr){
+			parallel_for_gpu(m_stream.get(), length, [local_params=m_network->params(), params=params_gpu.data(), index=params_index_gpu.data(), m] __device__ (size_t i) {
+				if (index[i] < m) local_params[index[i]] += (network_precision_t)params[i];
+			});
+		}
+		if (m_network->inference_params() != nullptr && m_network->inference_params() != m_network->params()) {
+			parallel_for_gpu(m_stream.get(), length, [local_params=m_network->inference_params(), params=params_gpu.data(), index=params_index_gpu.data(), m] __device__ (size_t i) {
+				if (index[i] < m) local_params[index[i]] += (network_precision_t)params[i];
+			});
+		}
+	}
+}
+
 void Testbed::set_density_grid_load_cache_size(size_t size) { // yin: for ngp flow
 	density_grid_gpu.resize(size * sizeof(float));
 	density_grid_index_gpu.resize(size * sizeof(int));
@@ -4948,6 +4974,32 @@ void Testbed::set_density_grid(float* density_grid_cpu, int* index_cpu, size_t n
 		CUDA_CHECK_THROW(cudaMemcpyAsync(density_grid_index_gpu.data(), &index_cpu[start], length*sizeof(int), cudaMemcpyHostToDevice, m_stream.get()));
 		parallel_for_gpu(m_stream.get(), length, [local_density_grid=m_nerf.density_grid.data(), density_grid=density_grid_gpu.data(), index=density_grid_index_gpu.data(), m] __device__ (size_t i) {
 			if (index[i] < m) local_density_grid[index[i]] = density_grid[i];
+		});
+	}
+
+	if (m_nerf.density_grid.size() == NERF_GRID_N_CELLS() * (m_nerf.max_cascade + 1)) {
+		update_density_grid_mean_and_bitfield(m_stream.get());
+	} else if (m_nerf.density_grid.size() != 0) {
+		// A size of 0 indicates that the density grid was never populated, which is a valid state of a (yet) untrained model.
+		throw std::runtime_error{"Incompatible number of grid cascades."};
+	}
+}
+
+void Testbed::add_density_grid(float* density_grid_cpu, int* index_cpu, size_t n) { // yin: for ngp flow
+	size_t cache_size = density_grid_gpu.size() / sizeof(float);
+	if (cache_size != density_grid_index_gpu.size() / sizeof(int)) {
+		throw std::runtime_error{"size of density_grid_gpu and density_grid_index_gpu not match."};
+	}
+	size_t m = NERF_GRID_N_CELLS() * (m_nerf.max_cascade + 1);
+	for (size_t i = 0; i <= n / cache_size; i++) {
+		size_t start = i*cache_size;
+		size_t end = (start+cache_size)<n?(start+cache_size):n;
+		if (start >= end) break;
+		size_t length = end-start;
+		CUDA_CHECK_THROW(cudaMemcpyAsync(density_grid_gpu.data(), &density_grid_cpu[start], length*sizeof(float), cudaMemcpyHostToDevice, m_stream.get()));
+		CUDA_CHECK_THROW(cudaMemcpyAsync(density_grid_index_gpu.data(), &index_cpu[start], length*sizeof(int), cudaMemcpyHostToDevice, m_stream.get()));
+		parallel_for_gpu(m_stream.get(), length, [local_density_grid=m_nerf.density_grid.data(), density_grid=density_grid_gpu.data(), index=density_grid_index_gpu.data(), m] __device__ (size_t i) {
+			if (index[i] < m) local_density_grid[index[i]] += density_grid[i];
 		});
 	}
 
