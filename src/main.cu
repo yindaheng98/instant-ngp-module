@@ -180,8 +180,23 @@ int main_func(const std::vector<std::string>& arguments) {
 		testbed.init_vr();
 	}
 
+	// testbed.set_params_load_cache_size(1048576);
+	// const int N=12950272;
+	// const int n=2097152;
+	// float* density_grid = (float*)malloc(n*sizeof(float));
+	// int* index = (int*)malloc(n*sizeof(int));
 	// Render/training loop
 	while (testbed.frame()) {
+		// for (int i=0;i<=N/n;i++) {
+		// 	size_t j = i*n;
+		// 	size_t k = (j+n)<N?(j+n):N;
+		// 	if (j >= k) break;
+		// 	for (int l=0;l<n;l++) {
+		// 		density_grid[l] = 0.1;
+		// 		index[l] = j+l;
+		// 	}
+		// 	testbed.set_params(density_grid, index, n);
+		// }
 		if (!gui) {
 			tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val();
 		}
