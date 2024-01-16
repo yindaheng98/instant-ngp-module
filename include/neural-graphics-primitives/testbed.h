@@ -466,6 +466,7 @@ public:
 	void diff_params_enqueue(pybind11::array_t<float> params, pybind11::array_t<int> index); // yin: for ngp flow
 	void load_density_grid_enqueue(pybind11::array_t<float> density_grid, pybind11::array_t<int> index); // yin: for ngp flow
 	void diff_density_grid_enqueue(pybind11::array_t<float> density_grid, pybind11::array_t<int> index); // yin: for ngp flow
+#endif
 	bool load_params_dequeue(); // yin: for ngp flow
 	bool diff_params_dequeue(); // yin: for ngp flow
 	bool load_density_grid_dequeue(); // yin: for ngp flow
@@ -484,7 +485,6 @@ private:
 	std::thread last_diff_params_thread; // yin: for ngp flow
 	std::thread last_load_density_grid_thread; // yin: for ngp flow
 	std::thread last_diff_density_grid_thread; // yin: for ngp flow
-#endif
 public:
 	void set_params(float* params, int* index, size_t n); // yin: for ngp flow
 	void add_params(float* params, int* index, size_t n); // yin: for ngp flow

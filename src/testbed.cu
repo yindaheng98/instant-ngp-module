@@ -5011,6 +5011,42 @@ void Testbed::add_density_grid(float* density_grid_cpu, int* index_cpu, size_t n
 	}
 }
 
+bool Testbed::load_params_dequeue() { // yin: for ngp flow
+	if (load_params_queue.empty()) return false;
+	QueueObj obj = load_params_queue.front();
+	set_params(obj.data, obj.index, obj.n);
+	load_params_queue.pop();
+	tlog::info() << "load_params_dequeue" << obj.data << ' ' << obj.index << obj.n;
+	return true;
+}
+
+bool Testbed::diff_params_dequeue() { // yin: for ngp flow
+	if (diff_params_queue.empty()) return false;
+	QueueObj obj = diff_params_queue.front();
+	add_params(obj.data, obj.index, obj.n);
+	diff_params_queue.pop();
+	tlog::info() << "diff_params_dequeue" << obj.data << ' ' << obj.index << obj.n;
+	return true;
+}
+
+bool Testbed::load_density_grid_dequeue() { // yin: for ngp flow
+	if (load_density_grid_queue.empty()) return false;
+	QueueObj obj = load_density_grid_queue.front();
+	set_density_grid(obj.data, obj.index, obj.n);
+	load_density_grid_queue.pop();
+	tlog::info() << "load_density_grid_dequeue" << obj.data << ' ' << obj.index << obj.n;
+	return true;
+}
+
+bool Testbed::diff_density_grid_dequeue() { // yin: for ngp flow
+	if (diff_density_grid_queue.empty()) return false;
+	QueueObj obj = diff_density_grid_queue.front();
+	add_density_grid(obj.data, obj.index, obj.n);
+	diff_density_grid_queue.pop();
+	tlog::info() << "diff_density_grid_dequeue" << obj.data << ' ' << obj.index << obj.n;
+	return true;
+}
+
 Testbed::CudaDevice::CudaDevice(int id, bool is_primary) : m_id{id}, m_is_primary{is_primary} {
 	auto guard = device_guard();
 	m_stream = std::make_unique<StreamAndEvent>();

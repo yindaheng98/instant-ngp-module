@@ -75,38 +75,6 @@ void Testbed::diff_density_grid_enqueue(py::array_t<float> density_grid, py::arr
 	py2c_enqueue<QueueObj>(density_grid, index, last_diff_density_grid_thread, diff_density_grid_queue);
 }
 
-bool Testbed::load_params_dequeue() { // yin: for ngp flow
-	if (load_params_queue.empty()) return false;
-	QueueObj obj = load_params_queue.front();
-	set_params(obj.data, obj.index, obj.n);
-	load_params_queue.pop();
-	return true;
-}
-
-bool Testbed::diff_params_dequeue() { // yin: for ngp flow
-	if (diff_params_queue.empty()) return false;
-	QueueObj obj = diff_params_queue.front();
-	add_params(obj.data, obj.index, obj.n);
-	diff_params_queue.pop();
-	return true;
-}
-
-bool Testbed::load_density_grid_dequeue() { // yin: for ngp flow
-	if (load_density_grid_queue.empty()) return false;
-	QueueObj obj = load_density_grid_queue.front();
-	set_density_grid(obj.data, obj.index, obj.n);
-	load_density_grid_queue.pop();
-	return true;
-}
-
-bool Testbed::diff_density_grid_dequeue() { // yin: for ngp flow
-	if (diff_density_grid_queue.empty()) return false;
-	QueueObj obj = diff_density_grid_queue.front();
-	add_density_grid(obj.data, obj.index, obj.n);
-	diff_density_grid_queue.pop();
-	return true;
-}
-
 void Testbed::load_params(py::array_t<float> params, py::array_t<int> index) { // yin: for ngp flow
 	py::buffer_info params_buf = params.request();
 	py::buffer_info index_buf = index.request();
