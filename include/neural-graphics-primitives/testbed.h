@@ -13,7 +13,9 @@
  */
 
 #pragma once
-
+#include <thread> // std::thread
+#include <mutex> // std::mutex, std::lock
+#include <queue> // std::queue
 #include <neural-graphics-primitives/adam_optimizer.h>
 #include <neural-graphics-primitives/camera_path.h>
 #include <neural-graphics-primitives/common.h>
@@ -460,7 +462,30 @@ public:
 	void diff_params(pybind11::array_t<float> params_diff, pybind11::array_t<int> index); // yin: for ngp flow
 	void load_density_grid(pybind11::array_t<float> density_grid, pybind11::array_t<int> index); // yin: for ngp flow
 	void diff_density_grid(pybind11::array_t<float> density_grid_diff, pybind11::array_t<int> index); // yin: for ngp flow
+	void load_params_enqueue(pybind11::array_t<float> params, pybind11::array_t<int> index); // yin: for ngp flow
+	void diff_params_enqueue(pybind11::array_t<float> params, pybind11::array_t<int> index); // yin: for ngp flow
+	void load_density_grid_enqueue(pybind11::array_t<float> density_grid, pybind11::array_t<int> index); // yin: for ngp flow
+	void diff_density_grid_enqueue(pybind11::array_t<float> density_grid, pybind11::array_t<int> index); // yin: for ngp flow
+	bool load_params_dequeue(); // yin: for ngp flow
+	bool diff_params_dequeue(); // yin: for ngp flow
+	bool load_density_grid_dequeue(); // yin: for ngp flow
+	bool diff_density_grid_dequeue(); // yin: for ngp flow
+private:
+	struct QueueObj { // yin: for ngp flow
+		float* data;
+		int* index;
+		size_t n = 0;
+	};
+	std::queue<QueueObj> load_params_queue; // yin: for ngp flow
+	std::queue<QueueObj> diff_params_queue; // yin: for ngp flow
+	std::queue<QueueObj> load_density_grid_queue; // yin: for ngp flow
+	std::queue<QueueObj> diff_density_grid_queue; // yin: for ngp flow
+	std::thread last_load_params_thread; // yin: for ngp flow
+	std::thread last_diff_params_thread; // yin: for ngp flow
+	std::thread last_load_density_grid_thread; // yin: for ngp flow
+	std::thread last_diff_density_grid_thread; // yin: for ngp flow
 #endif
+public:
 	void set_params(float* params, int* index, size_t n); // yin: for ngp flow
 	void add_params(float* params, int* index, size_t n); // yin: for ngp flow
 	void set_params_load_cache_size(size_t size); // yin: for ngp flow
