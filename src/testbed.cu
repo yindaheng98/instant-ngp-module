@@ -4898,13 +4898,13 @@ void Testbed::load_snapshot(std::istream& stream, bool is_compressed) {
 }
 
 void Testbed::set_params_load_cache_size(size_t size) { // yin: for ngp flow
-	params_gpu.resize(size * sizeof(float));
-	params_index_gpu.resize(size * sizeof(int));
+	params_gpu.resize(size * sizeof(__half));
+	params_index_gpu.resize(size * sizeof(size_t));
 }
 
 void Testbed::frame_data_enqueue(const fs::path& path, std::queue<QueueObj>& queue) { // yin: for ngp flow
-	std::thread this_thread(
-		[&queue](const fs::path path, std::thread last_thread){
+	std::thread current_thread(
+		[&queue](const fs::path path){
 			std::ifstream f{native_string(path), std::ios::in | std::ios::binary};
 			json data = json::from_bson(f);
 			QueueObj qobj = QueueObj{};
@@ -4915,13 +4915,16 @@ void Testbed::frame_data_enqueue(const fs::path& path, std::queue<QueueObj>& que
 					throw std::runtime_error{"size of params and params_size not match."};
 				std::vector<__half> params(params_size);
 				std::memcpy(params.data(), params_raw.data(), params_size*sizeof(__half));
-				qobj.params = params;
+				std::vector<size_t> index(params_size);
 				if (data.contains("params_idx")) {
 					std::vector<uint8_t> index_raw = data["params_idx"];
-					std::vector<size_t> index(params_size);
 					std::memcpy(index.data(), index_raw.data(), params_size*sizeof(size_t));
 					qobj.params_index = index;
+				} else {
+					for (size_t i=0;i<params_size;i++) index[i] = i;
 				}
+				qobj.params = params;
+				qobj.params_index = index;
 			}
 			if (data.contains("density_grid_size") && data.contains("density_grid")) {
 				size_t density_grid_size = data["density_grid_size"];
@@ -4930,19 +4933,21 @@ void Testbed::frame_data_enqueue(const fs::path& path, std::queue<QueueObj>& que
 					throw std::runtime_error{"size of density_grid and density_grid_size not match."};
 				std::vector<__half> density_grid(density_grid_size);
 				std::memcpy(density_grid.data(), density_grid_raw.data(), density_grid_size*sizeof(__half));
-				qobj.density_grid = density_grid;
+				std::vector<size_t> index(density_grid_size);
 				if (data.contains("density_grid_idx")) {
 					std::vector<uint8_t> index_raw = data["params_idx"];
-					std::vector<size_t> index(density_grid_size);
 					std::memcpy(index.data(), index_raw.data(), density_grid_size*sizeof(size_t));
-					qobj.density_grid_index = index;
+				} else {
+					for (size_t i=0;i<density_grid_size;i++) index[i] = i;
 				}
+				qobj.density_grid = density_grid;
+				qobj.density_grid_index = index;
 			}
-			if (last_thread.joinable()) last_thread.join();
 			queue.push(qobj);
-		}, std::move(path), std::move(last_update_frame_thread)
+		}, std::move(path)
 	);
-	last_update_frame_thread = std::move(this_thread);
+	last_update_frame_thread = std::move(current_thread);
+	last_update_frame_thread.join();
 }
 
 void Testbed::load_frame_enqueue(const fs::path& path) { // yin: for ngp flow
