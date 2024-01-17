@@ -489,6 +489,7 @@ public:
 	void set_density_grid(std::vector<__half> density_grid, std::vector<size_t> index); // yin: for ngp flow
 	void add_density_grid(std::vector<__half> density_grid, std::vector<size_t> index); // yin: for ngp flow
 	void set_density_grid_load_cache_size(size_t size); // yin: for ngp flow
+	void join_last_update_frame_thread(); // yin: for ngp flow
 private:
 	GPUMemory<__half> params_gpu; // yin: for ngp flow
 	GPUMemory<size_t> params_index_gpu; // yin: for ngp flow

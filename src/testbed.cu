@@ -4904,7 +4904,7 @@ void Testbed::set_params_load_cache_size(size_t size) { // yin: for ngp flow
 
 void Testbed::frame_data_enqueue(const fs::path& path, std::queue<QueueObj>& queue) { // yin: for ngp flow
 	std::thread current_thread(
-		[&queue](const fs::path path){
+		[&queue](const fs::path path, std::thread last_thread){
 			std::ifstream f{native_string(path), std::ios::in | std::ios::binary};
 			json data = json::from_bson(f);
 			QueueObj qobj = QueueObj{};
@@ -4944,10 +4944,15 @@ void Testbed::frame_data_enqueue(const fs::path& path, std::queue<QueueObj>& que
 				qobj.density_grid_index = index;
 			}
 			queue.push(qobj);
-		}, std::move(path)
+			if (last_thread.joinable()) last_thread.join();
+		}, std::move(path), std::move(last_update_frame_thread)
 	);
 	last_update_frame_thread = std::move(current_thread);
-	last_update_frame_thread.join();
+}
+
+void Testbed::join_last_update_frame_thread() {
+	if (last_update_frame_thread.joinable())
+		last_update_frame_thread.join();
 }
 
 void Testbed::load_frame_enqueue(const fs::path& path) { // yin: for ngp flow

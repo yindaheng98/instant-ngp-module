@@ -198,6 +198,7 @@ int main_func(const std::vector<std::string>& arguments) {
 			tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val();
 		}
 	}
+	testbed.join_last_update_frame_thread();
 
 	return 0;
 }
