@@ -180,8 +180,8 @@ int main_func(const std::vector<std::string>& arguments) {
 		testbed.init_vr();
 	}
 
-	// testbed.set_params_load_cache_size(1048576);
-	// testbed.set_density_grid_load_cache_size(1048576);
+	testbed.set_params_load_cache_size(1048576);
+	testbed.set_density_grid_load_cache_size(1048576);
 	// const int N=12950272;
 	// float* density_grid = (float*)malloc(N*sizeof(float));
 	// int* index = (int*)malloc(N*sizeof(int));
@@ -190,13 +190,14 @@ int main_func(const std::vector<std::string>& arguments) {
 	// 	index[i] = i;
 	// }
 	// Render/training loop
-	// testbed.load_frame_enqueue("/volume/results/stnerf-taekwondo/frame1-intra.bson");
 	while (testbed.frame()) {
-		// testbed.set_params(density_grid, index, N);
-		// testbed.load_frame_dequeue();
 		if (!gui) {
 			tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val();
 		}
+		if (testbed.load_frame_enqueue("/volume/results/stnerf-taekwondo/frame1-intra.bson"))
+			tlog::info() << "ok load_frame_enqueue";
+		if (testbed.load_frame_dequeue())
+			tlog::info() << "ok load_frame_dequeue";
 	}
 	testbed.join_last_update_frame_thread();
 

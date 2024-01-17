@@ -467,10 +467,11 @@ public:
 	void load_density_grid_enqueue_py(pybind11::array_t<float> density_grid, pybind11::array_t<int> index); // yin: for ngp flow
 	void diff_density_grid_enqueue_py(pybind11::array_t<float> density_grid, pybind11::array_t<int> index); // yin: for ngp flow
 #endif
-	void load_frame_enqueue(const fs::path& path); // yin: for ngp flow
-	void diff_frame_enqueue(const fs::path& path); // yin: for ngp flow
+	bool load_frame_enqueue(const fs::path& path); // yin: for ngp flow
+	bool diff_frame_enqueue(const fs::path& path); // yin: for ngp flow
 	bool load_frame_dequeue(); // yin: for ngp flow
 	bool diff_frame_dequeue(); // yin: for ngp flow
+	int max_read_frame_thread_n = 16; // yin: for ngp flow
 private:
 	struct QueueObj { // yin: for ngp flow
 		std::vector<__half> params;
@@ -481,7 +482,8 @@ private:
 	std::queue<QueueObj> load_frame_queue; // yin: for ngp flow
 	std::queue<QueueObj> diff_frame_queue; // yin: for ngp flow
 	std::thread last_update_frame_thread; // yin: for ngp flow
-	void frame_data_enqueue(const fs::path& path, std::queue<QueueObj>& queue); // yin: for ngp flow
+	bool frame_data_enqueue(const fs::path& path, std::queue<QueueObj>& queue); // yin: for ngp flow
+	std::atomic<int> read_frame_thread_counter = {0}; // yin: for ngp flow
 public:
 	void set_params(std::vector<__half> params_cpu, std::vector<size_t> index_cpu); // yin: for ngp flow
 	void add_params(std::vector<__half> params_cpu, std::vector<size_t> index_cpu); // yin: for ngp flow
