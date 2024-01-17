@@ -467,40 +467,33 @@ public:
 	void load_density_grid_enqueue_py(pybind11::array_t<float> density_grid, pybind11::array_t<int> index); // yin: for ngp flow
 	void diff_density_grid_enqueue_py(pybind11::array_t<float> density_grid, pybind11::array_t<int> index); // yin: for ngp flow
 #endif
-	void load_params_enqueue(std::vector<float> params, std::vector<int> index); // yin: for ngp flow
-	void diff_params_enqueue(std::vector<float> params, std::vector<int> index); // yin: for ngp flow
-	void load_density_grid_enqueue(std::vector<float>& density_grid, std::vector<int>& index); // yin: for ngp flow
-	void diff_density_grid_enqueue(std::vector<float>& density_grid, std::vector<int>& index); // yin: for ngp flow
-	bool load_params_dequeue(); // yin: for ngp flow
-	bool diff_params_dequeue(); // yin: for ngp flow
-	bool load_density_grid_dequeue(); // yin: for ngp flow
-	bool diff_density_grid_dequeue(); // yin: for ngp flow
+	void load_frame_enqueue(const fs::path& path); // yin: for ngp flow
+	void diff_frame_enqueue(const fs::path& path); // yin: for ngp flow
+	bool load_frame_dequeue(); // yin: for ngp flow
+	bool diff_frame_dequeue(); // yin: for ngp flow
 private:
 	struct QueueObj { // yin: for ngp flow
-		float* data;
-		int* index;
-		size_t n = 0;
+		std::vector<__half> params;
+		std::vector<size_t> params_index;
+		std::vector<__half> density_grid;
+		std::vector<size_t> density_grid_index;
 	};
-	std::queue<QueueObj> load_params_queue; // yin: for ngp flow
-	std::queue<QueueObj> diff_params_queue; // yin: for ngp flow
-	std::queue<QueueObj> load_density_grid_queue; // yin: for ngp flow
-	std::queue<QueueObj> diff_density_grid_queue; // yin: for ngp flow
-	std::thread last_load_params_thread; // yin: for ngp flow
-	std::thread last_diff_params_thread; // yin: for ngp flow
-	std::thread last_load_density_grid_thread; // yin: for ngp flow
-	std::thread last_diff_density_grid_thread; // yin: for ngp flow
+	std::queue<QueueObj> load_frame_queue; // yin: for ngp flow
+	std::queue<QueueObj> diff_frame_queue; // yin: for ngp flow
+	std::thread last_update_frame_thread; // yin: for ngp flow
+	void frame_data_enqueue(const fs::path& path, std::queue<QueueObj>& queue); // yin: for ngp flow
 public:
-	void set_params(float* params, int* index, size_t n); // yin: for ngp flow
-	void add_params(float* params, int* index, size_t n); // yin: for ngp flow
+	void set_params(std::vector<__half> params_cpu, std::vector<size_t> index_cpu); // yin: for ngp flow
+	void add_params(std::vector<__half> params_cpu, std::vector<size_t> index_cpu); // yin: for ngp flow
 	void set_params_load_cache_size(size_t size); // yin: for ngp flow
-	void set_density_grid(float* density_grid, int* index, size_t n); // yin: for ngp flow
-	void add_density_grid(float* density_grid, int* index, size_t n); // yin: for ngp flow
+	void set_density_grid(std::vector<__half> density_grid, std::vector<size_t> index); // yin: for ngp flow
+	void add_density_grid(std::vector<__half> density_grid, std::vector<size_t> index); // yin: for ngp flow
 	void set_density_grid_load_cache_size(size_t size); // yin: for ngp flow
 private:
-	GPUMemory<float> params_gpu; // yin: for ngp flow
-	GPUMemory<int> params_index_gpu; // yin: for ngp flow
-	GPUMemory<float> density_grid_gpu; // yin: for ngp flow
-	GPUMemory<int> density_grid_index_gpu; // yin: for ngp flow
+	GPUMemory<__half> params_gpu; // yin: for ngp flow
+	GPUMemory<size_t> params_index_gpu; // yin: for ngp flow
+	GPUMemory<__half> density_grid_gpu; // yin: for ngp flow
+	GPUMemory<size_t> density_grid_index_gpu; // yin: for ngp flow
 
 public:
 	double calculate_iou(uint32_t n_samples=128*1024*1024, float scale_existing_results_factor=0.0, bool blocking=true, bool force_use_octree = true);

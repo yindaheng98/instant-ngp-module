@@ -4902,10 +4902,65 @@ void Testbed::set_params_load_cache_size(size_t size) { // yin: for ngp flow
 	params_index_gpu.resize(size * sizeof(int));
 }
 
-void Testbed::set_params(float* params_cpu, int* index_cpu, size_t n) { // yin: for ngp flow
-	size_t cache_size = params_gpu.size() / sizeof(float);
-	if (cache_size != params_index_gpu.size() / sizeof(int)) {
+void Testbed::frame_data_enqueue(const fs::path& path, std::queue<QueueObj>& queue) { // yin: for ngp flow
+	std::thread this_thread(
+		[&queue](const fs::path path, std::thread last_thread){
+			std::ifstream f{native_string(path), std::ios::in | std::ios::binary};
+			json data = json::from_bson(f);
+			QueueObj qobj = QueueObj{};
+			if (data.contains("params_size") && data.contains("params")) {
+				size_t params_size = data["params_size"];
+				auto params_raw = data["params"].get_binary();
+				if (params_raw.size() != params_size*sizeof(__half))
+					throw std::runtime_error{"size of params and params_size not match."};
+				std::vector<__half> params(params_size);
+				std::memcpy(params.data(), params_raw.data(), params_size*sizeof(__half));
+				qobj.params = params;
+				if (data.contains("params_idx")) {
+					std::vector<uint8_t> index_raw = data["params_idx"];
+					std::vector<size_t> index(params_size);
+					std::memcpy(index.data(), index_raw.data(), params_size*sizeof(size_t));
+					qobj.params_index = index;
+				}
+			}
+			if (data.contains("density_grid_size") && data.contains("density_grid")) {
+				size_t density_grid_size = data["density_grid_size"];
+				auto density_grid_raw = data["density_grid"].get_binary();
+				if (density_grid_raw.size() != density_grid_size*sizeof(__half))
+					throw std::runtime_error{"size of density_grid and density_grid_size not match."};
+				std::vector<__half> density_grid(density_grid_size);
+				std::memcpy(density_grid.data(), density_grid_raw.data(), density_grid_size*sizeof(__half));
+				qobj.density_grid = density_grid;
+				if (data.contains("density_grid_idx")) {
+					std::vector<uint8_t> index_raw = data["params_idx"];
+					std::vector<size_t> index(density_grid_size);
+					std::memcpy(index.data(), index_raw.data(), density_grid_size*sizeof(size_t));
+					qobj.density_grid_index = index;
+				}
+			}
+			if (last_thread.joinable()) last_thread.join();
+			queue.push(qobj);
+		}, std::move(path), std::move(last_update_frame_thread)
+	);
+	last_update_frame_thread = std::move(this_thread);
+}
+
+void Testbed::load_frame_enqueue(const fs::path& path) { // yin: for ngp flow
+	frame_data_enqueue(path, load_frame_queue);
+}
+
+void Testbed::diff_frame_enqueue(const fs::path& path) { // yin: for ngp flow
+	frame_data_enqueue(path, diff_frame_queue);
+}
+
+void Testbed::set_params(std::vector<__half> params_cpu, std::vector<size_t> index_cpu) { // yin: for ngp flow
+	size_t cache_size = params_gpu.size() / sizeof(__half);
+	if (cache_size != params_index_gpu.size() / sizeof(size_t)) {
 		throw std::runtime_error{"size of params_gpu and params_index_gpu not match."};
+	}
+	size_t n = params_cpu.size();
+	if (n != index_cpu.size()) {
+		throw std::runtime_error{"size of params_cpu and index_cpu not match."};
 	}
 	size_t m = n_params();
 	for (size_t i = 0; i <= n / cache_size; i++) {
@@ -4913,8 +4968,8 @@ void Testbed::set_params(float* params_cpu, int* index_cpu, size_t n) { // yin: 
 		size_t end = (start+cache_size)<n?(start+cache_size):n;
 		if (start >= end) break;
 		size_t length = end-start;
-		CUDA_CHECK_THROW(cudaMemcpyAsync(params_gpu.data(), &params_cpu[start], length*sizeof(float), cudaMemcpyHostToDevice, m_stream.get()));
-		CUDA_CHECK_THROW(cudaMemcpyAsync(params_index_gpu.data(), &index_cpu[start], length*sizeof(int), cudaMemcpyHostToDevice, m_stream.get()));
+		CUDA_CHECK_THROW(cudaMemcpyAsync(params_gpu.data(), &params_cpu[start], length*sizeof(__half), cudaMemcpyHostToDevice, m_stream.get()));
+		CUDA_CHECK_THROW(cudaMemcpyAsync(params_index_gpu.data(), &index_cpu[start], length*sizeof(size_t), cudaMemcpyHostToDevice, m_stream.get()));
 		if (m_network->params() != nullptr){
 			parallel_for_gpu(m_stream.get(), length, [local_params=m_network->params(), params=params_gpu.data(), index=params_index_gpu.data(), m] __device__ (size_t i) {
 				if (index[i] < m) local_params[index[i]] = (network_precision_t)params[i];
@@ -4928,10 +4983,14 @@ void Testbed::set_params(float* params_cpu, int* index_cpu, size_t n) { // yin: 
 	}
 }
 
-void Testbed::add_params(float* params_cpu, int* index_cpu, size_t n) { // yin: for ngp flow
-	size_t cache_size = params_gpu.size() / sizeof(float);
-	if (cache_size != params_index_gpu.size() / sizeof(int)) {
+void Testbed::add_params(std::vector<__half> params_cpu, std::vector<size_t> index_cpu) { // yin: for ngp flow
+	size_t cache_size = params_gpu.size() / sizeof(__half);
+	if (cache_size != params_index_gpu.size() / sizeof(size_t)) {
 		throw std::runtime_error{"size of params_gpu and params_index_gpu not match."};
+	}
+	size_t n = params_cpu.size();
+	if (n != index_cpu.size()) {
+		throw std::runtime_error{"size of params_cpu and index_cpu not match."};
 	}
 	size_t m = n_params();
 	for (size_t i = 0; i <= n / cache_size; i++) {
@@ -4939,8 +4998,8 @@ void Testbed::add_params(float* params_cpu, int* index_cpu, size_t n) { // yin: 
 		size_t end = (start+cache_size)<n?(start+cache_size):n;
 		if (start >= end) break;
 		size_t length = end-start;
-		CUDA_CHECK_THROW(cudaMemcpyAsync(params_gpu.data(), &params_cpu[start], length*sizeof(float), cudaMemcpyHostToDevice, m_stream.get()));
-		CUDA_CHECK_THROW(cudaMemcpyAsync(params_index_gpu.data(), &index_cpu[start], length*sizeof(int), cudaMemcpyHostToDevice, m_stream.get()));
+		CUDA_CHECK_THROW(cudaMemcpyAsync(params_gpu.data(), &params_cpu[start], length*sizeof(__half), cudaMemcpyHostToDevice, m_stream.get()));
+		CUDA_CHECK_THROW(cudaMemcpyAsync(params_index_gpu.data(), &index_cpu[start], length*sizeof(size_t), cudaMemcpyHostToDevice, m_stream.get()));
 		if (m_network->params() != nullptr){
 			parallel_for_gpu(m_stream.get(), length, [local_params=m_network->params(), params=params_gpu.data(), index=params_index_gpu.data(), m] __device__ (size_t i) {
 				if (index[i] < m) local_params[index[i]] += (network_precision_t)params[i];
@@ -4955,14 +5014,18 @@ void Testbed::add_params(float* params_cpu, int* index_cpu, size_t n) { // yin: 
 }
 
 void Testbed::set_density_grid_load_cache_size(size_t size) { // yin: for ngp flow
-	density_grid_gpu.resize(size * sizeof(float));
-	density_grid_index_gpu.resize(size * sizeof(int));
+	density_grid_gpu.resize(size * sizeof(__half));
+	density_grid_index_gpu.resize(size * sizeof(size_t));
 }
 
-void Testbed::set_density_grid(float* density_grid_cpu, int* index_cpu, size_t n) { // yin: for ngp flow
-	size_t cache_size = density_grid_gpu.size() / sizeof(float);
-	if (cache_size != density_grid_index_gpu.size() / sizeof(int)) {
+void Testbed::set_density_grid(std::vector<__half> density_grid_cpu, std::vector<size_t> index_cpu) { // yin: for ngp flow
+	size_t cache_size = density_grid_gpu.size() / sizeof(__half);
+	if (cache_size != density_grid_index_gpu.size() / sizeof(size_t)) {
 		throw std::runtime_error{"size of density_grid_gpu and density_grid_index_gpu not match."};
+	}
+	size_t n = density_grid_cpu.size();
+	if (n != index_cpu.size()) {
+		throw std::runtime_error{"size of density_grid_cpu and index_cpu not match."};
 	}
 	size_t m = NERF_GRID_N_CELLS() * (m_nerf.max_cascade + 1);
 	for (size_t i = 0; i <= n / cache_size; i++) {
@@ -4970,10 +5033,10 @@ void Testbed::set_density_grid(float* density_grid_cpu, int* index_cpu, size_t n
 		size_t end = (start+cache_size)<n?(start+cache_size):n;
 		if (start >= end) break;
 		size_t length = end-start;
-		CUDA_CHECK_THROW(cudaMemcpyAsync(density_grid_gpu.data(), &density_grid_cpu[start], length*sizeof(float), cudaMemcpyHostToDevice, m_stream.get()));
-		CUDA_CHECK_THROW(cudaMemcpyAsync(density_grid_index_gpu.data(), &index_cpu[start], length*sizeof(int), cudaMemcpyHostToDevice, m_stream.get()));
+		CUDA_CHECK_THROW(cudaMemcpyAsync(density_grid_gpu.data(), &density_grid_cpu[start], length*sizeof(__half), cudaMemcpyHostToDevice, m_stream.get()));
+		CUDA_CHECK_THROW(cudaMemcpyAsync(density_grid_index_gpu.data(), &index_cpu[start], length*sizeof(size_t), cudaMemcpyHostToDevice, m_stream.get()));
 		parallel_for_gpu(m_stream.get(), length, [local_density_grid=m_nerf.density_grid.data(), density_grid=density_grid_gpu.data(), index=density_grid_index_gpu.data(), m] __device__ (size_t i) {
-			if (index[i] < m) local_density_grid[index[i]] = density_grid[i];
+			if (index[i] < m) local_density_grid[index[i]] = (float)density_grid[i];
 		});
 	}
 
@@ -4985,10 +5048,14 @@ void Testbed::set_density_grid(float* density_grid_cpu, int* index_cpu, size_t n
 	}
 }
 
-void Testbed::add_density_grid(float* density_grid_cpu, int* index_cpu, size_t n) { // yin: for ngp flow
-	size_t cache_size = density_grid_gpu.size() / sizeof(float);
-	if (cache_size != density_grid_index_gpu.size() / sizeof(int)) {
+void Testbed::add_density_grid(std::vector<__half> density_grid_cpu, std::vector<size_t> index_cpu) { // yin: for ngp flow
+	size_t cache_size = density_grid_gpu.size() / sizeof(__half);
+	if (cache_size != density_grid_index_gpu.size() / sizeof(size_t)) {
 		throw std::runtime_error{"size of density_grid_gpu and density_grid_index_gpu not match."};
+	}
+	size_t n = density_grid_cpu.size();
+	if (n != index_cpu.size()) {
+		throw std::runtime_error{"size of density_grid_cpu and index_cpu not match."};
 	}
 	size_t m = NERF_GRID_N_CELLS() * (m_nerf.max_cascade + 1);
 	for (size_t i = 0; i <= n / cache_size; i++) {
@@ -4996,10 +5063,10 @@ void Testbed::add_density_grid(float* density_grid_cpu, int* index_cpu, size_t n
 		size_t end = (start+cache_size)<n?(start+cache_size):n;
 		if (start >= end) break;
 		size_t length = end-start;
-		CUDA_CHECK_THROW(cudaMemcpyAsync(density_grid_gpu.data(), &density_grid_cpu[start], length*sizeof(float), cudaMemcpyHostToDevice, m_stream.get()));
-		CUDA_CHECK_THROW(cudaMemcpyAsync(density_grid_index_gpu.data(), &index_cpu[start], length*sizeof(int), cudaMemcpyHostToDevice, m_stream.get()));
+		CUDA_CHECK_THROW(cudaMemcpyAsync(density_grid_gpu.data(), &density_grid_cpu[start], length*sizeof(__half), cudaMemcpyHostToDevice, m_stream.get()));
+		CUDA_CHECK_THROW(cudaMemcpyAsync(density_grid_index_gpu.data(), &index_cpu[start], length*sizeof(size_t), cudaMemcpyHostToDevice, m_stream.get()));
 		parallel_for_gpu(m_stream.get(), length, [local_density_grid=m_nerf.density_grid.data(), density_grid=density_grid_gpu.data(), index=density_grid_index_gpu.data(), m] __device__ (size_t i) {
-			if (index[i] < m) local_density_grid[index[i]] += density_grid[i];
+			if (index[i] < m) local_density_grid[index[i]] += (float)density_grid[i];
 		});
 	}
 
@@ -5011,39 +5078,21 @@ void Testbed::add_density_grid(float* density_grid_cpu, int* index_cpu, size_t n
 	}
 }
 
-bool Testbed::load_params_dequeue() { // yin: for ngp flow
-	if (load_params_queue.empty()) return false;
-	QueueObj obj = load_params_queue.front();
-	set_params(obj.data, obj.index, obj.n);
-	load_params_queue.pop();
-	tlog::info() << "load_params_dequeue" << obj.data << ' ' << obj.index << obj.n;
+bool Testbed::load_frame_dequeue() { // yin: for ngp flow
+	if (load_frame_queue.empty()) return false;
+	QueueObj obj = load_frame_queue.front();
+	set_params(obj.params, obj.params_index);
+	set_density_grid(obj.density_grid, obj.density_grid_index);
+	load_frame_queue.pop();
 	return true;
 }
 
-bool Testbed::diff_params_dequeue() { // yin: for ngp flow
-	if (diff_params_queue.empty()) return false;
-	QueueObj obj = diff_params_queue.front();
-	add_params(obj.data, obj.index, obj.n);
-	diff_params_queue.pop();
-	tlog::info() << "diff_params_dequeue" << obj.data << ' ' << obj.index << obj.n;
-	return true;
-}
-
-bool Testbed::load_density_grid_dequeue() { // yin: for ngp flow
-	if (load_density_grid_queue.empty()) return false;
-	QueueObj obj = load_density_grid_queue.front();
-	set_density_grid(obj.data, obj.index, obj.n);
-	load_density_grid_queue.pop();
-	tlog::info() << "load_density_grid_dequeue" << obj.data << ' ' << obj.index << obj.n;
-	return true;
-}
-
-bool Testbed::diff_density_grid_dequeue() { // yin: for ngp flow
-	if (diff_density_grid_queue.empty()) return false;
-	QueueObj obj = diff_density_grid_queue.front();
-	add_density_grid(obj.data, obj.index, obj.n);
-	diff_density_grid_queue.pop();
-	tlog::info() << "diff_density_grid_dequeue" << obj.data << ' ' << obj.index << obj.n;
+bool Testbed::diff_frame_dequeue() { // yin: for ngp flow
+	if (diff_frame_queue.empty()) return false;
+	QueueObj obj = diff_frame_queue.front();
+	add_params(obj.params, obj.params_index);
+	add_density_grid(obj.density_grid, obj.density_grid_index);
+	diff_frame_queue.pop();
 	return true;
 }
 
