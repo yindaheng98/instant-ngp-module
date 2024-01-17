@@ -475,9 +475,9 @@ public:
 private:
 	struct QueueObj { // yin: for ngp flow
 		std::vector<__half> params;
-		std::vector<size_t> params_index;
+		std::vector<uint32_t> params_index;
 		std::vector<__half> density_grid;
-		std::vector<size_t> density_grid_index;
+		std::vector<uint32_t> density_grid_index;
 	};
 	std::queue<QueueObj> load_frame_queue; // yin: for ngp flow
 	std::queue<QueueObj> diff_frame_queue; // yin: for ngp flow
@@ -485,18 +485,18 @@ private:
 	bool frame_data_enqueue(const fs::path& path, std::queue<QueueObj>& queue); // yin: for ngp flow
 	std::atomic<int> read_frame_thread_counter = {0}; // yin: for ngp flow
 public:
-	void set_params(std::vector<__half> params_cpu, std::vector<size_t> index_cpu); // yin: for ngp flow
-	void add_params(std::vector<__half> params_cpu, std::vector<size_t> index_cpu); // yin: for ngp flow
+	void set_params(std::vector<__half> params_cpu, std::vector<uint32_t> index_cpu); // yin: for ngp flow
+	void add_params(std::vector<__half> params_cpu, std::vector<uint32_t> index_cpu); // yin: for ngp flow
 	void set_params_load_cache_size(size_t size); // yin: for ngp flow
-	void set_density_grid(std::vector<__half> density_grid, std::vector<size_t> index); // yin: for ngp flow
-	void add_density_grid(std::vector<__half> density_grid, std::vector<size_t> index); // yin: for ngp flow
+	void set_density_grid(std::vector<__half> density_grid, std::vector<uint32_t> index); // yin: for ngp flow
+	void add_density_grid(std::vector<__half> density_grid, std::vector<uint32_t> index); // yin: for ngp flow
 	void set_density_grid_load_cache_size(size_t size); // yin: for ngp flow
 	void join_last_update_frame_thread(); // yin: for ngp flow
 private:
 	GPUMemory<__half> params_gpu; // yin: for ngp flow
-	GPUMemory<size_t> params_index_gpu; // yin: for ngp flow
+	GPUMemory<uint32_t> params_index_gpu; // yin: for ngp flow
 	GPUMemory<__half> density_grid_gpu; // yin: for ngp flow
-	GPUMemory<size_t> density_grid_index_gpu; // yin: for ngp flow
+	GPUMemory<uint32_t> density_grid_index_gpu; // yin: for ngp flow
 
 public:
 	double calculate_iou(uint32_t n_samples=128*1024*1024, float scale_existing_results_factor=0.0, bool blocking=true, bool force_use_octree = true);
