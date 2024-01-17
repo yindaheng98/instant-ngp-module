@@ -474,10 +474,12 @@ public:
 	int max_read_frame_thread_n = 16; // yin: for ngp flow
 private:
 	struct QueueObj { // yin: for ngp flow
-		std::vector<__half> params;
-		std::vector<uint32_t> params_index;
-		std::vector<__half> density_grid;
-		std::vector<uint32_t> density_grid_index;
+		__half* params;
+		uint32_t* params_index;
+		size_t params_size;
+		__half* density_grid;
+		uint32_t* density_grid_index;
+		size_t density_grid_size;
 	};
 	std::queue<QueueObj> load_frame_queue; // yin: for ngp flow
 	std::queue<QueueObj> diff_frame_queue; // yin: for ngp flow
@@ -485,11 +487,15 @@ private:
 	bool frame_data_enqueue(const fs::path& path, std::queue<QueueObj>& queue); // yin: for ngp flow
 	std::atomic<int> read_frame_thread_counter = {0}; // yin: for ngp flow
 public:
-	void set_params(std::vector<__half> params_cpu, std::vector<uint32_t> index_cpu); // yin: for ngp flow
-	void add_params(std::vector<__half> params_cpu, std::vector<uint32_t> index_cpu); // yin: for ngp flow
+	void set_params(__half* params_gpu, uint32_t* index_gpu, size_t n); // yin: for ngp flow
+	void set_params(__half* params_gpu, size_t n); // yin: for ngp flow
+	void add_params(__half* params_gpu, uint32_t* index_gpu, size_t n); // yin: for ngp flow
+	void add_params(__half* params_gpu, size_t n); // yin: for ngp flow
 	void set_params_load_cache_size(size_t size); // yin: for ngp flow
-	void set_density_grid(std::vector<__half> density_grid, std::vector<uint32_t> index); // yin: for ngp flow
-	void add_density_grid(std::vector<__half> density_grid, std::vector<uint32_t> index); // yin: for ngp flow
+	void set_density_grid(__half* density_grid_gpu, uint32_t* index_gpu, size_t n); // yin: for ngp flow
+	void set_density_grid(__half* density_grid_gpu, size_t n); // yin: for ngp flow
+	void add_density_grid(__half* density_grid_gpu, uint32_t* index_gpu, size_t n); // yin: for ngp flow
+	void add_density_grid(__half* density_grid_gpu, size_t n); // yin: for ngp flow
 	void set_density_grid_load_cache_size(size_t size); // yin: for ngp flow
 	void join_last_update_frame_thread(); // yin: for ngp flow
 private:
