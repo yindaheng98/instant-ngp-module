@@ -44,34 +44,35 @@ namespace ngp {
 
 template <typename T>
 void py2c_enqueue(py::array_t<float> data, py::array_t<int> index, std::thread& last_thread, std::queue<T> queue) { // yin: for ngp flow
-	std::thread this_thread(
-		[&queue](py::array_t<float> data, py::array_t<int> index, std::thread last_thread){
-			py::buffer_info data_buf = data.request();
-			py::buffer_info index_buf = index.request();
-			if (data_buf.ndim != 1 || index_buf.ndim != 1 || data_buf.shape[0] != index_buf.shape[0]) {
-				tlog::error() << "Invalid Data<->Index data";
-				return;
-			}
-			last_thread.join();
-			queue.push(T{static_cast<float*>(data_buf.ptr), static_cast<int*>(index_buf.ptr), (size_t)index_buf.shape[0]});
-		}, data, index, std::move(last_thread)
-	);
-	last_thread = std::move(this_thread);
+	tlog::warning() << "py2c_enqueue not work";
+	// std::thread this_thread(
+	// 	[&queue](py::array_t<float> data, py::array_t<int> index, std::thread last_thread){
+	// 		py::buffer_info data_buf = data.request();
+	// 		py::buffer_info index_buf = index.request();
+	// 		if (data_buf.ndim != 1 || index_buf.ndim != 1 || data_buf.shape[0] != index_buf.shape[0]) {
+	// 			tlog::error() << "Invalid Data<->Index data";
+	// 			return;
+	// 		}
+	// 		last_thread.join();
+	// 		queue.push(T{static_cast<float*>(data_buf.ptr), static_cast<int*>(index_buf.ptr), (size_t)index_buf.shape[0]});
+	// 	}, data, index, std::move(last_thread)
+	// );
+	// last_thread = std::move(this_thread);
 }
 
-void Testbed::load_params_enqueue(py::array_t<float> params, py::array_t<int> index) { // yin: for ngp flow
+void Testbed::load_params_enqueue_py(py::array_t<float> params, py::array_t<int> index) { // yin: for ngp flow
 	py2c_enqueue<QueueObj>(params, index, last_load_params_thread, load_params_queue);
 }
 
-void Testbed::diff_params_enqueue(py::array_t<float> params, py::array_t<int> index) { // yin: for ngp flow
+void Testbed::diff_params_enqueue_py(py::array_t<float> params, py::array_t<int> index) { // yin: for ngp flow
 	py2c_enqueue<QueueObj>(params, index, last_diff_params_thread, diff_params_queue);
 }
 
-void Testbed::load_density_grid_enqueue(py::array_t<float> density_grid, py::array_t<int> index) { // yin: for ngp flow
+void Testbed::load_density_grid_enqueue_py(py::array_t<float> density_grid, py::array_t<int> index) { // yin: for ngp flow
 	py2c_enqueue<QueueObj>(density_grid, index, last_load_density_grid_thread, load_density_grid_queue);
 }
 
-void Testbed::diff_density_grid_enqueue(py::array_t<float> density_grid, py::array_t<int> index) { // yin: for ngp flow
+void Testbed::diff_density_grid_enqueue_py(py::array_t<float> density_grid, py::array_t<int> index) { // yin: for ngp flow
 	py2c_enqueue<QueueObj>(density_grid, index, last_diff_density_grid_thread, diff_density_grid_queue);
 }
 
@@ -515,10 +516,10 @@ PYBIND11_MODULE(pyngp, m) {
 		.def("diff_params", &Testbed::diff_params, "Add params at any time.")
 		.def("load_density_grid", &Testbed::load_density_grid, "Load density grid at any time.")
 		.def("diff_density_grid", &Testbed::diff_density_grid, "Add density grid at any time.")
-		.def("load_params_enqueue", &Testbed::load_params_enqueue, "Load params at any time.")
-		.def("diff_params_enqueue", &Testbed::diff_params_enqueue, "Add params at any time.")
-		.def("load_density_grid_enqueue", &Testbed::load_density_grid_enqueue, "Load density grid at any time.")
-		.def("diff_density_grid_enqueue", &Testbed::diff_density_grid_enqueue, "Add density grid at any time.")
+		.def("load_params_enqueue", &Testbed::load_params_enqueue_py, "Load params at any time.")
+		.def("diff_params_enqueue", &Testbed::diff_params_enqueue_py, "Add params at any time.")
+		.def("load_density_grid_enqueue", &Testbed::load_density_grid_enqueue_py, "Load density grid at any time.")
+		.def("diff_density_grid_enqueue", &Testbed::diff_density_grid_enqueue_py, "Add density grid at any time.")
 		.def("load_params_dequeue", &Testbed::load_params_dequeue, "Load params at any time.")
 		.def("diff_params_dequeue", &Testbed::diff_params_dequeue, "Add params at any time.")
 		.def("load_density_grid_dequeue", &Testbed::load_density_grid_dequeue, "Load density grid at any time.")

@@ -462,11 +462,15 @@ public:
 	void diff_params(pybind11::array_t<float> params_diff, pybind11::array_t<int> index); // yin: for ngp flow
 	void load_density_grid(pybind11::array_t<float> density_grid, pybind11::array_t<int> index); // yin: for ngp flow
 	void diff_density_grid(pybind11::array_t<float> density_grid_diff, pybind11::array_t<int> index); // yin: for ngp flow
-	void load_params_enqueue(pybind11::array_t<float> params, pybind11::array_t<int> index); // yin: for ngp flow
-	void diff_params_enqueue(pybind11::array_t<float> params, pybind11::array_t<int> index); // yin: for ngp flow
-	void load_density_grid_enqueue(pybind11::array_t<float> density_grid, pybind11::array_t<int> index); // yin: for ngp flow
-	void diff_density_grid_enqueue(pybind11::array_t<float> density_grid, pybind11::array_t<int> index); // yin: for ngp flow
+	void load_params_enqueue_py(pybind11::array_t<float> params, pybind11::array_t<int> index); // yin: for ngp flow
+	void diff_params_enqueue_py(pybind11::array_t<float> params, pybind11::array_t<int> index); // yin: for ngp flow
+	void load_density_grid_enqueue_py(pybind11::array_t<float> density_grid, pybind11::array_t<int> index); // yin: for ngp flow
+	void diff_density_grid_enqueue_py(pybind11::array_t<float> density_grid, pybind11::array_t<int> index); // yin: for ngp flow
 #endif
+	void load_params_enqueue(std::vector<float> params, std::vector<int> index); // yin: for ngp flow
+	void diff_params_enqueue(std::vector<float> params, std::vector<int> index); // yin: for ngp flow
+	void load_density_grid_enqueue(std::vector<float>& density_grid, std::vector<int>& index); // yin: for ngp flow
+	void diff_density_grid_enqueue(std::vector<float>& density_grid, std::vector<int>& index); // yin: for ngp flow
 	bool load_params_dequeue(); // yin: for ngp flow
 	bool diff_params_dequeue(); // yin: for ngp flow
 	bool load_density_grid_dequeue(); // yin: for ngp flow
