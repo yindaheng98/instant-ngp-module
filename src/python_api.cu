@@ -42,83 +42,83 @@ namespace py = pybind11;
 
 namespace ngp {
 
-template <typename T>
-void py2c_enqueue(py::array_t<float> data, py::array_t<int> index, std::thread& last_thread, std::queue<T> queue) { // yin: for ngp flow
-	tlog::warning() << "py2c_enqueue not work";
-	// std::thread this_thread(
-	// 	[&queue](py::array_t<float> data, py::array_t<int> index, std::thread last_thread){
-	// 		py::buffer_info data_buf = data.request();
-	// 		py::buffer_info index_buf = index.request();
-	// 		if (data_buf.ndim != 1 || index_buf.ndim != 1 || data_buf.shape[0] != index_buf.shape[0]) {
-	// 			tlog::error() << "Invalid Data<->Index data";
-	// 			return;
-	// 		}
-	// 		last_thread.join();
-	// 		queue.push(T{static_cast<float*>(data_buf.ptr), static_cast<int*>(index_buf.ptr), (size_t)index_buf.shape[0]});
-	// 	}, data, index, std::move(last_thread)
-	// );
-	// last_thread = std::move(this_thread);
-}
+// template <typename T>
+// void py2c_enqueue(py::array_t<float> data, py::array_t<int> index, std::thread& last_thread, std::queue<T> queue) { // yin: for ngp flow
+// 	tlog::warning() << "py2c_enqueue not work";
+// 	// std::thread this_thread(
+// 	// 	[&queue](py::array_t<float> data, py::array_t<int> index, std::thread last_thread){
+// 	// 		py::buffer_info data_buf = data.request();
+// 	// 		py::buffer_info index_buf = index.request();
+// 	// 		if (data_buf.ndim != 1 || index_buf.ndim != 1 || data_buf.shape[0] != index_buf.shape[0]) {
+// 	// 			tlog::error() << "Invalid Data<->Index data";
+// 	// 			return;
+// 	// 		}
+// 	// 		last_thread.join();
+// 	// 		queue.push(T{static_cast<float*>(data_buf.ptr), static_cast<int*>(index_buf.ptr), (size_t)index_buf.shape[0]});
+// 	// 	}, data, index, std::move(last_thread)
+// 	// );
+// 	// last_thread = std::move(this_thread);
+// }
 
-void Testbed::load_params_enqueue_py(py::array_t<float> params, py::array_t<int> index) { // yin: for ngp flow
-	py2c_enqueue<QueueObj>(params, index, last_load_params_thread, load_params_queue);
-}
+// void Testbed::load_params_enqueue_py(py::array_t<float> params, py::array_t<int> index) { // yin: for ngp flow
+// 	py2c_enqueue<QueueObj>(params, index, last_load_params_thread, load_params_queue);
+// }
 
-void Testbed::diff_params_enqueue_py(py::array_t<float> params, py::array_t<int> index) { // yin: for ngp flow
-	py2c_enqueue<QueueObj>(params, index, last_diff_params_thread, diff_params_queue);
-}
+// void Testbed::diff_params_enqueue_py(py::array_t<float> params, py::array_t<int> index) { // yin: for ngp flow
+// 	py2c_enqueue<QueueObj>(params, index, last_diff_params_thread, diff_params_queue);
+// }
 
-void Testbed::load_density_grid_enqueue_py(py::array_t<float> density_grid, py::array_t<int> index) { // yin: for ngp flow
-	py2c_enqueue<QueueObj>(density_grid, index, last_load_density_grid_thread, load_density_grid_queue);
-}
+// void Testbed::load_density_grid_enqueue_py(py::array_t<float> density_grid, py::array_t<int> index) { // yin: for ngp flow
+// 	py2c_enqueue<QueueObj>(density_grid, index, last_load_density_grid_thread, load_density_grid_queue);
+// }
 
-void Testbed::diff_density_grid_enqueue_py(py::array_t<float> density_grid, py::array_t<int> index) { // yin: for ngp flow
-	py2c_enqueue<QueueObj>(density_grid, index, last_diff_density_grid_thread, diff_density_grid_queue);
-}
+// void Testbed::diff_density_grid_enqueue_py(py::array_t<float> density_grid, py::array_t<int> index) { // yin: for ngp flow
+// 	py2c_enqueue<QueueObj>(density_grid, index, last_diff_density_grid_thread, diff_density_grid_queue);
+// }
 
-void Testbed::load_params(py::array_t<float> params, py::array_t<int> index) { // yin: for ngp flow
-	py::buffer_info params_buf = params.request();
-	py::buffer_info index_buf = index.request();
+// void Testbed::load_params(py::array_t<float> params, py::array_t<int> index) { // yin: for ngp flow
+// 	py::buffer_info params_buf = params.request();
+// 	py::buffer_info index_buf = index.request();
 
-	if (params_buf.ndim != 1 || index_buf.ndim != 1 || params_buf.shape[0] != index_buf.shape[0]) {
-		tlog::error() << "Invalid Params<->Index data";
-		return;
-	}
-	set_params(static_cast<float*>(params_buf.ptr), static_cast<int*>(index_buf.ptr), index_buf.shape[0]);
-}
+// 	if (params_buf.ndim != 1 || index_buf.ndim != 1 || params_buf.shape[0] != index_buf.shape[0]) {
+// 		tlog::error() << "Invalid Params<->Index data";
+// 		return;
+// 	}
+// 	set_params(static_cast<float*>(params_buf.ptr), static_cast<int*>(index_buf.ptr), index_buf.shape[0]);
+// }
 
-void Testbed::diff_params(py::array_t<float> params, py::array_t<int> index) { // yin: for ngp flow
-	py::buffer_info params_buf = params.request();
-	py::buffer_info index_buf = index.request();
+// void Testbed::diff_params(py::array_t<float> params, py::array_t<int> index) { // yin: for ngp flow
+// 	py::buffer_info params_buf = params.request();
+// 	py::buffer_info index_buf = index.request();
 
-	if (params_buf.ndim != 1 || index_buf.ndim != 1 || params_buf.shape[0] != index_buf.shape[0]) {
-		tlog::error() << "Invalid Params<->Index data";
-		return;
-	}
-	add_params(static_cast<float*>(params_buf.ptr), static_cast<int*>(index_buf.ptr), index_buf.shape[0]);
-}
+// 	if (params_buf.ndim != 1 || index_buf.ndim != 1 || params_buf.shape[0] != index_buf.shape[0]) {
+// 		tlog::error() << "Invalid Params<->Index data";
+// 		return;
+// 	}
+// 	add_params(static_cast<float*>(params_buf.ptr), static_cast<int*>(index_buf.ptr), index_buf.shape[0]);
+// }
 
-void Testbed::load_density_grid(pybind11::array_t<float> density_grid, pybind11::array_t<int> index) { // yin: for ngp flow
-	py::buffer_info density_grid_buf = density_grid.request();
-	py::buffer_info index_buf = index.request();
+// void Testbed::load_density_grid(pybind11::array_t<float> density_grid, pybind11::array_t<int> index) { // yin: for ngp flow
+// 	py::buffer_info density_grid_buf = density_grid.request();
+// 	py::buffer_info index_buf = index.request();
 
-	if (density_grid_buf.ndim != 1 || index_buf.ndim != 1 || density_grid_buf.shape[0] != index_buf.shape[0]) {
-		tlog::error() << "Invalid Density_grid<->Index data";
-		return;
-	}
-	set_density_grid(static_cast<float*>(density_grid_buf.ptr), static_cast<int*>(index_buf.ptr), index_buf.shape[0]);
-}
+// 	if (density_grid_buf.ndim != 1 || index_buf.ndim != 1 || density_grid_buf.shape[0] != index_buf.shape[0]) {
+// 		tlog::error() << "Invalid Density_grid<->Index data";
+// 		return;
+// 	}
+// 	set_density_grid(static_cast<float*>(density_grid_buf.ptr), static_cast<int*>(index_buf.ptr), index_buf.shape[0]);
+// }
 
-void Testbed::diff_density_grid(pybind11::array_t<float> density_grid, pybind11::array_t<int> index) { // yin: for ngp flow
-	py::buffer_info density_grid_buf = density_grid.request();
-	py::buffer_info index_buf = index.request();
+// void Testbed::diff_density_grid(pybind11::array_t<float> density_grid, pybind11::array_t<int> index) { // yin: for ngp flow
+// 	py::buffer_info density_grid_buf = density_grid.request();
+// 	py::buffer_info index_buf = index.request();
 
-	if (density_grid_buf.ndim != 1 || index_buf.ndim != 1 || density_grid_buf.shape[0] != index_buf.shape[0]) {
-		tlog::error() << "Invalid Density_grid<->Index data";
-		return;
-	}
-	add_density_grid(static_cast<float*>(density_grid_buf.ptr), static_cast<int*>(index_buf.ptr), index_buf.shape[0]);
-}
+// 	if (density_grid_buf.ndim != 1 || index_buf.ndim != 1 || density_grid_buf.shape[0] != index_buf.shape[0]) {
+// 		tlog::error() << "Invalid Density_grid<->Index data";
+// 		return;
+// 	}
+// 	add_density_grid(static_cast<float*>(density_grid_buf.ptr), static_cast<int*>(index_buf.ptr), index_buf.shape[0]);
+// }
 
 void Testbed::Nerf::Training::set_image(int frame_idx, pybind11::array_t<float> img, pybind11::array_t<float> depth_img, float depth_scale) {
 	if (frame_idx < 0 || frame_idx >= dataset.n_images) {
@@ -512,20 +512,25 @@ PYBIND11_MODULE(pyngp, m) {
 			py::arg("config_base_path") = ""
 		)
 		.def("override_sdf_training_data", &Testbed::override_sdf_training_data, "Override the training data for learning a signed distance function")
-		.def("load_params", &Testbed::load_params, "Load params at any time.")
-		.def("diff_params", &Testbed::diff_params, "Add params at any time.")
-		.def("load_density_grid", &Testbed::load_density_grid, "Load density grid at any time.")
-		.def("diff_density_grid", &Testbed::diff_density_grid, "Add density grid at any time.")
-		.def("load_params_enqueue", &Testbed::load_params_enqueue_py, "Load params at any time.")
-		.def("diff_params_enqueue", &Testbed::diff_params_enqueue_py, "Add params at any time.")
-		.def("load_density_grid_enqueue", &Testbed::load_density_grid_enqueue_py, "Load density grid at any time.")
-		.def("diff_density_grid_enqueue", &Testbed::diff_density_grid_enqueue_py, "Add density grid at any time.")
-		.def("load_params_dequeue", &Testbed::load_params_dequeue, "Load params at any time.")
-		.def("diff_params_dequeue", &Testbed::diff_params_dequeue, "Add params at any time.")
-		.def("load_density_grid_dequeue", &Testbed::load_density_grid_dequeue, "Load density grid at any time.")
-		.def("diff_density_grid_dequeue", &Testbed::diff_density_grid_dequeue, "Add density grid at any time.")
+		.def("load_params", &Testbed::set_params, "Load params at any time.")
+		.def("diff_params", &Testbed::add_params, "Add params at any time.")
+		.def("load_density_grid", &Testbed::set_density_grid, "Load density grid at any time.")
+		.def("diff_density_grid", &Testbed::add_density_grid, "Add density grid at any time.")
+		// .def("load_params_enqueue", &Testbed::load_params_enqueue_py, "Load params at any time.")
+		// .def("diff_params_enqueue", &Testbed::diff_params_enqueue_py, "Add params at any time.")
+		// .def("load_density_grid_enqueue", &Testbed::load_density_grid_enqueue_py, "Load density grid at any time.")
+		// .def("diff_density_grid_enqueue", &Testbed::diff_density_grid_enqueue_py, "Add density grid at any time.")
+		// .def("load_params_dequeue", &Testbed::load_params_dequeue, "Load params at any time.")
+		// .def("diff_params_dequeue", &Testbed::diff_params_dequeue, "Add params at any time.")
+		// .def("load_density_grid_dequeue", &Testbed::load_density_grid_dequeue, "Load density grid at any time.")
+		// .def("diff_density_grid_dequeue", &Testbed::diff_density_grid_dequeue, "Add density grid at any time.")
+		.def("load_frame_enqueue", &Testbed::load_frame_enqueue, "Load frame at any time.")
+		.def("diff_frame_enqueue", &Testbed::diff_frame_enqueue, "Add frame at any time.")
+		.def("load_frame_dequeue", &Testbed::load_frame_dequeue, "Load frame at any time.")
+		.def("diff_frame_dequeue", &Testbed::diff_frame_dequeue, "Add frame at any time.")
 		.def("set_params_load_cache_size", &Testbed::set_params_load_cache_size, "Load params at any time.")
 		.def("set_density_grid_load_cache_size", &Testbed::set_density_grid_load_cache_size, "Load density grid at any time.")
+		.def("join_last_update_frame_thread", &Testbed::join_last_update_frame_thread, "Wait until the testbed frame read finish.")
 		.def("calculate_iou", &Testbed::calculate_iou, "Calculate the intersection over union error value",
 			py::arg("n_samples") = 128*1024*1024,
 			py::arg("scale_existing_results_factor") = 0.0f,

@@ -458,14 +458,14 @@ public:
 	pybind11::array_t<float> view(bool linear, size_t view) const;
 	pybind11::array_t<float> screenshot(bool linear, bool front_buffer) const;
 	void override_sdf_training_data(pybind11::array_t<float> points, pybind11::array_t<float> distances);
-	void load_params(pybind11::array_t<float> params, pybind11::array_t<int> index); // yin: for ngp flow
-	void diff_params(pybind11::array_t<float> params_diff, pybind11::array_t<int> index); // yin: for ngp flow
-	void load_density_grid(pybind11::array_t<float> density_grid, pybind11::array_t<int> index); // yin: for ngp flow
-	void diff_density_grid(pybind11::array_t<float> density_grid_diff, pybind11::array_t<int> index); // yin: for ngp flow
-	void load_params_enqueue_py(pybind11::array_t<float> params, pybind11::array_t<int> index); // yin: for ngp flow
-	void diff_params_enqueue_py(pybind11::array_t<float> params, pybind11::array_t<int> index); // yin: for ngp flow
-	void load_density_grid_enqueue_py(pybind11::array_t<float> density_grid, pybind11::array_t<int> index); // yin: for ngp flow
-	void diff_density_grid_enqueue_py(pybind11::array_t<float> density_grid, pybind11::array_t<int> index); // yin: for ngp flow
+	// void load_params(pybind11::array_t<float> params, pybind11::array_t<int> index); // yin: for ngp flow
+	// void diff_params(pybind11::array_t<float> params_diff, pybind11::array_t<int> index); // yin: for ngp flow
+	// void load_density_grid(pybind11::array_t<float> density_grid, pybind11::array_t<int> index); // yin: for ngp flow
+	// void diff_density_grid(pybind11::array_t<float> density_grid_diff, pybind11::array_t<int> index); // yin: for ngp flow
+	// void load_params_enqueue_py(pybind11::array_t<float> params, pybind11::array_t<int> index); // yin: for ngp flow
+	// void diff_params_enqueue_py(pybind11::array_t<float> params, pybind11::array_t<int> index); // yin: for ngp flow
+	// void load_density_grid_enqueue_py(pybind11::array_t<float> density_grid, pybind11::array_t<int> index); // yin: for ngp flow
+	// void diff_density_grid_enqueue_py(pybind11::array_t<float> density_grid, pybind11::array_t<int> index); // yin: for ngp flow
 #endif
 	bool load_frame_enqueue(const fs::path& path); // yin: for ngp flow
 	bool diff_frame_enqueue(const fs::path& path); // yin: for ngp flow
