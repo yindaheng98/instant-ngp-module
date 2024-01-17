@@ -26,6 +26,19 @@ using namespace std;
 
 namespace ngp {
 
+template< typename... Args >
+std::string string_sprintf( const char* format, Args... args ) {
+  int length = std::snprintf( nullptr, 0, format, args... );
+  assert( length >= 0 );
+
+  char* buf = new char[length + 1];
+  std::snprintf( buf, length + 1, format, args... );
+
+  std::string str( buf );
+  delete[] buf;
+  return str;
+}
+
 int main_func(const std::vector<std::string>& arguments) {
 	ArgumentParser parser{
 		"Instant Neural Graphics Primitives\n"
@@ -116,6 +129,34 @@ int main_func(const std::vector<std::string>& arguments) {
 		"Files to be loaded. Can be a scene, network config, snapshot, camera path, or a combination of those.",
 	};
 
+	ValueFlag<string> init_flag{
+		parser,
+		"INIT",
+		"The bson intra frame for init.",
+		{"init"},
+	};
+
+	ValueFlag<uint32_t> start_flag{
+		parser,
+		"START",
+		"The start frame number.",
+		{"start"},
+	};
+
+	ValueFlag<uint32_t> end_flag{
+		parser,
+		"START",
+		"The end frame number.",
+		{"end"},
+	};
+
+	ValueFlag<string> frameformat_flag{
+		parser,
+		"FRAMEFPRMAT",
+		"The path format of exported video frames (.bson).",
+		{"frameformat"},
+	};
+
 	// Parse command line arguments and react to parsing
 	// errors using exceptions.
 	try {
@@ -182,22 +223,34 @@ int main_func(const std::vector<std::string>& arguments) {
 
 	testbed.set_params_load_cache_size(1048576);
 	testbed.set_density_grid_load_cache_size(1048576);
-	// const int N=12950272;
-	// float* density_grid = (float*)malloc(N*sizeof(float));
-	// int* index = (int*)malloc(N*sizeof(int));
-	// for (int i=0;i<=N;i++) {
-	// 	density_grid[i] = 0.1;
-	// 	index[i] = i;
-	// }
+	if (!init_flag || !start_flag || !end_flag || !frameformat_flag) {
+		throw std::runtime_error("This is a player! Please specify --init, --start, --end and --frameformat!");
+	}
+	string init = get(init_flag);
+	uint32_t start = get(start_flag);
+	uint32_t end = get(end_flag);
+	string frameformat = get(frameformat_flag);
+	uint32_t current = end;
 	// Render/training loop
 	while (testbed.frame()) {
 		if (!gui) {
 			tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val();
 		}
-		if (testbed.load_frame_enqueue("/volume/results/stnerf-taekwondo/frame1-intra.bson"))
-			tlog::info() << "ok load_frame_enqueue";
+		if (current >= end) {
+			if (testbed.load_frame_enqueue(init)) {
+				tlog::info() << "ok load_frame_enqueue" << ' ' << init;
+				current = start;
+			}
+		} else {
+			std::string path = string_sprintf(frameformat.c_str(), current);
+			if (testbed.load_frame_enqueue(path)) {
+				tlog::info() << "ok load_frame_enqueue" << ' ' << path;
+				current++;
+			}
+		}
 		if (testbed.load_frame_dequeue())
 			tlog::info() << "ok load_frame_dequeue";
+		testbed.reset_accumulation();
 	}
 	testbed.join_last_update_frame_thread();
 
