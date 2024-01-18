@@ -4908,7 +4908,8 @@ bool Testbed::frame_data_enqueue(const fs::path& path, std::queue<QueueObj>& que
 		[&queue](const fs::path path, std::thread last_thread, std::atomic<int>& counter, cudaStream_t stream){
 			counter++;
 			std::ifstream f{native_string(path), std::ios::in | std::ios::binary};
-			json data = json::from_bson(f);
+			zstr::istream zf{f};
+			json data = json::from_bson(zf);
 			QueueObj qobj = QueueObj{};
 			if (data.contains("params_size") && data.contains("params")) {
 				size_t params_size = data["params_size"];
