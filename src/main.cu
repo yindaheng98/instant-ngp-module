@@ -244,16 +244,9 @@ int main_func(const std::vector<std::string>& arguments) {
 			tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val();
 		}
 		if (current >= end) {
-			if (diff_flag) {
-				if (testbed.diff_frame_enqueue(init)) {
-					tlog::info() << "ok diff_frame_enqueue init" << ' ' << init;
-					current = start;
-				}
-			} else {
-				if (testbed.load_frame_enqueue(init)) {
-					tlog::info() << "ok load_frame_enqueue init" << ' ' << init;
-					current = start;
-				}
+			if (testbed.load_frame_enqueue(init)) {
+				tlog::info() << "ok diff_frame_enqueue init" << ' ' << init;
+				current = start;
 			}
 		} else {
 			std::string path = string_sprintf(frameformat.c_str(), current);
