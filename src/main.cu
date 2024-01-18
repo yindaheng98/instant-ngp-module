@@ -157,6 +157,13 @@ int main_func(const std::vector<std::string>& arguments) {
 		{"frameformat"},
 	};
 
+	Flag diff_flag{
+		parser,
+		"DIFF",
+		"Use diff mode.",
+		{"diff"},
+	};
+
 	// Parse command line arguments and react to parsing
 	// errors using exceptions.
 	try {
@@ -237,19 +244,38 @@ int main_func(const std::vector<std::string>& arguments) {
 			tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val();
 		}
 		if (current >= end) {
-			if (testbed.load_frame_enqueue(init)) {
-				tlog::info() << "ok load_frame_enqueue" << ' ' << init;
-				current = start;
+			if (diff_flag) {
+				if (testbed.diff_frame_enqueue(init)) {
+					tlog::info() << "ok diff_frame_enqueue init" << ' ' << init;
+					current = start;
+				}
+			} else {
+				if (testbed.load_frame_enqueue(init)) {
+					tlog::info() << "ok load_frame_enqueue init" << ' ' << init;
+					current = start;
+				}
 			}
 		} else {
 			std::string path = string_sprintf(frameformat.c_str(), current);
-			if (testbed.load_frame_enqueue(path)) {
-				tlog::info() << "ok load_frame_enqueue" << ' ' << path;
-				current++;
+			if (diff_flag) {
+				if (testbed.diff_frame_enqueue(path)) {
+					tlog::info() << "ok diff_frame_enqueue" << ' ' << path;
+					current++;
+				}
+			} else {
+				if (testbed.load_frame_enqueue(path)) {
+					tlog::info() << "ok load_frame_enqueue" << ' ' << path;
+					current++;
+				}
 			}
 		}
-		if (testbed.load_frame_dequeue())
-			tlog::info() << "ok load_frame_dequeue";
+		if (diff_flag) {
+			if (testbed.diff_frame_dequeue())
+				tlog::info() << "ok load_frame_dequeue";
+		} else {
+			if (testbed.load_frame_dequeue())
+				tlog::info() << "ok load_frame_dequeue";
+		}
 		testbed.reset_accumulation();
 	}
 	testbed.join_last_update_frame_thread();
