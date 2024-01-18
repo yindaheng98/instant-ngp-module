@@ -264,7 +264,7 @@ int main_func(const std::vector<std::string>& arguments) {
 		}
 		if (diff_flag) {
 			if (testbed.diff_frame_dequeue())
-				tlog::info() << "ok load_frame_dequeue";
+				tlog::info() << "ok diff_frame_dequeue";
 		} else {
 			if (testbed.load_frame_dequeue())
 				tlog::info() << "ok load_frame_dequeue";
