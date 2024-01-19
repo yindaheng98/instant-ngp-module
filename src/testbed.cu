@@ -5105,27 +5105,24 @@ bool Testbed::diff_frame_dequeue() { // yin: for ngp flow
 }
 
 size_t extract_nonzero(__half* data, uint32_t** index, size_t size, cudaStream_t stream) { // yin: for ngp flow
-	size_t size_host = 0;
-	size_t* size_device = nullptr;
-	CUDA_CHECK_THROW(cudaMalloc(&size_device, sizeof(size_t)));
+	unsigned int size_host = 0;
+	unsigned int* size_device = nullptr;
+	CUDA_CHECK_THROW(cudaMalloc(&size_device, sizeof(unsigned int)));
 	CUDA_CHECK_THROW(cudaMalloc(index, size*sizeof(uint32_t)));
 	parallel_for_gpu(stream, size, [data=data, index=*index, size_device=size_device] __device__ (size_t i) {
-		__shared__ unsigned int idx_shared;
-		if (i==0) idx_shared = 0;
+		if (i==0) *size_device = 0;
 		__half d = data[i];
 		__syncthreads();
 		if (d > (__half)0.) {
-			auto idx = atomicAdd(&idx_shared, (unsigned int)1);
+			auto idx = atomicAdd(size_device, (unsigned int)1);
 			index[idx] = (uint32_t)i;
 			data[idx] = d;
 		}
-		__syncthreads();
-		if (i==0) *size_device = (size_t)idx_shared;
 	});
-	CUDA_CHECK_THROW(cudaMemcpyAsync(&size_host, size_device, sizeof(size_t), cudaMemcpyDeviceToHost, stream));
+	CUDA_CHECK_THROW(cudaMemcpyAsync(&size_host, size_device, sizeof(unsigned int), cudaMemcpyDeviceToHost, stream));
 	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 	CUDA_CHECK_THROW(cudaFree(size_device));
-	return size_host;
+	return (size_t)size_host;
 }
 
 bool Testbed::diff_frame_nonzero_dequeue() { // yin: for ngp flow
