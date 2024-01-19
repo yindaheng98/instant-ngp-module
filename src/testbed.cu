@@ -4919,14 +4919,8 @@ bool Testbed::frame_data_enqueue(const fs::path& path, std::queue<QueueObj>& que
 				__half* params = nullptr;
 				CUDA_CHECK_THROW(cudaMalloc(&params, params_size*sizeof(__half)));
 				CUDA_CHECK_THROW(cudaMemcpyAsync(params, params_raw.data(), params_size*sizeof(__half), cudaMemcpyHostToDevice, stream));
-				uint32_t* index = nullptr;
-				if (data.contains("params_idx")) {
-					auto index_raw = data["params_idx"].get_binary();
-					CUDA_CHECK_THROW(cudaMalloc(&index, params_size*sizeof(uint32_t)));
-					CUDA_CHECK_THROW(cudaMemcpyAsync(index, index_raw.data(), params_size*sizeof(uint32_t), cudaMemcpyHostToDevice, stream));
-				}
 				qobj.params = params;
-				qobj.params_index = index;
+				qobj.params_index = nullptr;
 				qobj.params_size = params_size;
 			}
 			if (data.contains("density_grid_size") && data.contains("density_grid")) {
@@ -4937,14 +4931,8 @@ bool Testbed::frame_data_enqueue(const fs::path& path, std::queue<QueueObj>& que
 				__half* density_grid = nullptr;
 				CUDA_CHECK_THROW(cudaMalloc(&density_grid, density_grid_size*sizeof(__half)));
 				CUDA_CHECK_THROW(cudaMemcpyAsync(density_grid, density_grid_raw.data(), density_grid_size*sizeof(__half), cudaMemcpyHostToDevice, stream));
-				uint32_t* index = nullptr;
-				if (data.contains("density_grid_idx")) {
-					auto index_raw = data["density_grid_idx"].get_binary();
-					CUDA_CHECK_THROW(cudaMalloc(&index, density_grid_size*sizeof(uint32_t)));
-					CUDA_CHECK_THROW(cudaMemcpyAsync(index, index_raw.data(), density_grid_size*sizeof(uint32_t), cudaMemcpyHostToDevice, stream));
-				}
 				qobj.density_grid = density_grid;
-				qobj.density_grid_index = index;
+				qobj.density_grid_index = nullptr;
 				qobj.density_grid_size = density_grid_size;
 			}
 			counter--;
