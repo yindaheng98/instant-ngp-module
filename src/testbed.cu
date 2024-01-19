@@ -5105,6 +5105,18 @@ bool Testbed::diff_frame_dequeue() { // yin: for ngp flow
 }
 
 size_t extract_nonzero(__half* data, uint32_t** index, size_t size, cudaStream_t stream) { // yin: for ngp flow
+	// float* data_fp = nullptr;
+	// CUDA_CHECK_THROW(cudaMalloc(&data_fp, size*sizeof(float)));
+	// float* data_fp_host = nullptr;
+
+	// parallel_for_gpu(stream, size, [data=data, data_fp=data_fp] __device__ (size_t i) {
+	// 	data_fp[i] = (float)data[i];
+	// });
+	// data_fp_host = (float*)malloc(size*sizeof(float));
+	// CUDA_CHECK_THROW(cudaMemcpyAsync(data_fp_host, data_fp, size*sizeof(float), cudaMemcpyDeviceToHost, stream));
+	// CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+	// float* data0 = data_fp_host;
+
 	unsigned int size_host = 0;
 	unsigned int* size_device = nullptr;
 	CUDA_CHECK_THROW(cudaMalloc(&size_device, sizeof(unsigned int)));
@@ -5122,6 +5134,25 @@ size_t extract_nonzero(__half* data, uint32_t** index, size_t size, cudaStream_t
 	CUDA_CHECK_THROW(cudaMemcpyAsync(&size_host, size_device, sizeof(unsigned int), cudaMemcpyDeviceToHost, stream));
 	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 	CUDA_CHECK_THROW(cudaFree(size_device));
+
+	// parallel_for_gpu(stream, size, [data=data, data_fp=data_fp] __device__ (size_t i) {
+	// 	data_fp[i] = (float)data[i];
+	// });
+	// data_fp_host = (float*)malloc(size*sizeof(float));
+	// CUDA_CHECK_THROW(cudaMemcpyAsync(data_fp_host, data_fp, size*sizeof(float), cudaMemcpyDeviceToHost, stream));
+	// CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+	// float* data1 = data_fp_host;
+
+	// uint32_t* index_host = (uint32_t*)malloc(size*sizeof(uint32_t));
+	// CUDA_CHECK_THROW(cudaMemcpyAsync(index_host, *index, size*sizeof(uint32_t), cudaMemcpyDeviceToHost, stream));
+	// CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+
+	// for (unsigned int i = 0;i<size_host;i+=10000) {
+	// 	tlog::info() << data0[index_host[i]] << data1[i] << ' ' << index_host[i];
+	// }
+	// free(data0);
+	// free(data1);
+
 	return (size_t)size_host;
 }
 
