@@ -471,6 +471,7 @@ public:
 	bool diff_frame_enqueue(const fs::path& path); // yin: for ngp flow
 	bool load_frame_dequeue(); // yin: for ngp flow
 	bool diff_frame_dequeue(); // yin: for ngp flow
+	bool diff_frame_nonzero_dequeue(); // yin: for ngp flow
 	int max_read_frame_thread_n = 16; // yin: for ngp flow
 private:
 	struct QueueObj { // yin: for ngp flow

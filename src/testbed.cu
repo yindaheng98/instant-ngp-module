@@ -5104,6 +5104,51 @@ bool Testbed::diff_frame_dequeue() { // yin: for ngp flow
 	return true;
 }
 
+size_t extract_nonzero(__half* data, uint32_t** index, size_t size, cudaStream_t stream) { // yin: for ngp flow
+	size_t size_host = 0;
+	size_t* size_device = nullptr;
+	CUDA_CHECK_THROW(cudaMalloc(&size_device, sizeof(size_t)));
+	CUDA_CHECK_THROW(cudaMalloc(index, size*sizeof(uint32_t)));
+	parallel_for_gpu(stream, size, [data=data, index=*index, size_device=size_device] __device__ (size_t i) {
+		__shared__ unsigned int idx_shared;
+		if (i==0) idx_shared = 0;
+		__half d = data[i];
+		__syncthreads();
+		if (d > (__half)0.) {
+			auto idx = atomicAdd(&idx_shared, (unsigned int)1);
+			index[idx] = (uint32_t)i;
+			data[idx] = d;
+		}
+		__syncthreads();
+		if (i==0) *size_device = (size_t)idx_shared;
+	});
+	CUDA_CHECK_THROW(cudaMemcpyAsync(&size_host, size_device, sizeof(size_t), cudaMemcpyDeviceToHost, stream));
+	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+	CUDA_CHECK_THROW(cudaFree(size_device));
+	return size_host;
+}
+
+bool Testbed::diff_frame_nonzero_dequeue() { // yin: for ngp flow
+	if (diff_frame_queue.empty()) return false;
+	QueueObj obj = diff_frame_queue.front();
+	if (obj.params_index != nullptr) add_params(obj.params, obj.params_index, obj.params_size);
+	else {
+		obj.params_size = extract_nonzero(obj.params, &obj.params_index, obj.params_size, m_stream.get());
+		add_params(obj.params, obj.params_index, obj.params_size);
+	}
+	if (obj.density_grid_index != nullptr) add_density_grid(obj.density_grid, obj.density_grid_index, obj.density_grid_size);
+	else {
+		obj.density_grid_size = extract_nonzero(obj.density_grid, &obj.density_grid_index, obj.density_grid_size, m_stream.get());
+		add_density_grid(obj.density_grid, obj.density_grid_index, obj.density_grid_size);
+	}
+	diff_frame_queue.pop();
+	cudaFree(obj.params);
+	cudaFree(obj.params_index);
+	cudaFree(obj.density_grid);
+	cudaFree(obj.density_grid_index);
+	return true;
+}
+
 Testbed::CudaDevice::CudaDevice(int id, bool is_primary) : m_id{id}, m_is_primary{is_primary} {
 	auto guard = device_guard();
 	m_stream = std::make_unique<StreamAndEvent>();
