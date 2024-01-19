@@ -4897,10 +4897,10 @@ void Testbed::load_snapshot(std::istream& stream, bool is_compressed) {
 	m_network_config_path = "";
 }
 
-void Testbed::set_params_load_cache_size(size_t size) { // yin: for ngp flow
-	params_gpu.resize(size * sizeof(__half));
-	params_index_gpu.resize(size * sizeof(uint32_t));
-}
+// void Testbed::set_params_load_cache_size(size_t size) { // yin: for ngp flow
+// 	params_gpu.resize(size * sizeof(__half));
+// 	params_index_gpu.resize(size * sizeof(uint32_t));
+// }
 
 bool Testbed::frame_data_enqueue(const fs::path& path, std::queue<QueueObj>& queue) { // yin: for ngp flow
 	if (read_frame_thread_counter >= max_read_frame_thread_n) return false;
@@ -5025,10 +5025,10 @@ void Testbed::add_params(__half* params_gpu, size_t n) { // yin: for ngp flow
 	}
 }
 
-void Testbed::set_density_grid_load_cache_size(size_t size) { // yin: for ngp flow
-	density_grid_gpu.resize(size * sizeof(__half));
-	density_grid_index_gpu.resize(size * sizeof(uint32_t));
-}
+// void Testbed::set_density_grid_load_cache_size(size_t size) { // yin: for ngp flow
+// 	density_grid_gpu.resize(size * sizeof(__half));
+// 	density_grid_index_gpu.resize(size * sizeof(uint32_t));
+// }
 
 void Testbed::set_density_grid(__half* density_grid_gpu, uint32_t* index_gpu, size_t n) { // yin: for ngp flow
 	size_t m = NERF_GRID_N_CELLS() * (m_nerf.max_cascade + 1);

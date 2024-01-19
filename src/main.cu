@@ -228,8 +228,8 @@ int main_func(const std::vector<std::string>& arguments) {
 		testbed.init_vr();
 	}
 
-	testbed.set_params_load_cache_size(1048576);
-	testbed.set_density_grid_load_cache_size(1048576);
+	// testbed.set_params_load_cache_size(1048576);
+	// testbed.set_density_grid_load_cache_size(1048576);
 	if (!init_flag || !start_flag || !end_flag || !frameformat_flag) {
 		throw std::runtime_error("This is a player! Please specify --init, --start, --end and --frameformat!");
 	}

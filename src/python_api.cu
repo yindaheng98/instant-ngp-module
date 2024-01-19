@@ -528,8 +528,8 @@ PYBIND11_MODULE(pyngp, m) {
 		.def("diff_frame_enqueue", &Testbed::diff_frame_enqueue, "Add frame at any time.")
 		.def("load_frame_dequeue", &Testbed::load_frame_dequeue, "Load frame at any time.")
 		.def("diff_frame_dequeue", &Testbed::diff_frame_dequeue, "Add frame at any time.")
-		.def("set_params_load_cache_size", &Testbed::set_params_load_cache_size, "Load params at any time.")
-		.def("set_density_grid_load_cache_size", &Testbed::set_density_grid_load_cache_size, "Load density grid at any time.")
+		// .def("set_params_load_cache_size", &Testbed::set_params_load_cache_size, "Load params at any time.")
+		// .def("set_density_grid_load_cache_size", &Testbed::set_density_grid_load_cache_size, "Load density grid at any time.")
 		.def("join_last_update_frame_thread", &Testbed::join_last_update_frame_thread, "Wait until the testbed frame read finish.")
 		.def("calculate_iou", &Testbed::calculate_iou, "Calculate the intersection over union error value",
 			py::arg("n_samples") = 128*1024*1024,
