@@ -238,6 +238,7 @@ int main_func(const std::vector<std::string>& arguments) {
 	uint32_t end = get(end_flag);
 	string frameformat = get(frameformat_flag);
 	uint32_t current = end;
+	auto last_frame_time = std::chrono::steady_clock::now();
 	// Render/training loop
 	while (testbed.frame()) {
 		if (!gui) {
@@ -245,6 +246,7 @@ int main_func(const std::vector<std::string>& arguments) {
 		}
 		if (current >= end) {
 			if (testbed.load_frame_enqueue(init)) {
+				last_frame_time = std::chrono::steady_clock::now();
 				tlog::info() << "ok diff_frame_enqueue init" << ' ' << init;
 				current = start;
 			}
@@ -252,13 +254,17 @@ int main_func(const std::vector<std::string>& arguments) {
 			std::string path = string_sprintf(frameformat.c_str(), current);
 			if (diff_flag) {
 				if (testbed.diff_frame_enqueue(path)) {
-					tlog::info() << "ok diff_frame_enqueue" << ' ' << path;
+					auto now = std::chrono::steady_clock::now();
+					auto time_period = std::chrono::duration<float>(now - last_frame_time).count();
 					current++;
+					tlog::info() << (current - start) / time_period << "FPS ok diff_frame_enqueue" << ' ' << path;
 				}
 			} else {
 				if (testbed.load_frame_enqueue(path)) {
-					tlog::info() << "ok load_frame_enqueue" << ' ' << path;
+					auto now = std::chrono::steady_clock::now();
+					auto time_period = std::chrono::duration<float>(now - last_frame_time).count();
 					current++;
+					tlog::info() << (current - start) / time_period << "FPS ok load_frame_enqueue" << ' ' << path;
 				}
 			}
 		}
