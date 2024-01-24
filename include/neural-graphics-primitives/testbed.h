@@ -14,7 +14,6 @@
 
 #pragma once
 #include <thread> // std::thread
-#include <mutex> // std::mutex, std::lock
 #include <queue> // std::queue
 #include <neural-graphics-primitives/adam_optimizer.h>
 #include <neural-graphics-primitives/camera_path.h>
@@ -499,11 +498,11 @@ public:
 	void add_density_grid(__half* density_grid_gpu, size_t n); // yin: for ngp flow
 	// void set_density_grid_load_cache_size(size_t size); // yin: for ngp flow
 	void join_last_update_frame_thread(); // yin: for ngp flow
-private:
-	GPUMemory<__half> params_gpu; // yin: for ngp flow
-	GPUMemory<uint32_t> params_index_gpu; // yin: for ngp flow
-	GPUMemory<__half> density_grid_gpu; // yin: for ngp flow
-	GPUMemory<uint32_t> density_grid_index_gpu; // yin: for ngp flow
+// private:
+// 	GPUMemory<__half> params_gpu; // yin: for ngp flow
+// 	GPUMemory<uint32_t> params_index_gpu; // yin: for ngp flow
+// 	GPUMemory<__half> density_grid_gpu; // yin: for ngp flow
+// 	GPUMemory<uint32_t> density_grid_index_gpu; // yin: for ngp flow
 
 public:
 	double calculate_iou(uint32_t n_samples=128*1024*1024, float scale_existing_results_factor=0.0, bool blocking=true, bool force_use_octree = true);
