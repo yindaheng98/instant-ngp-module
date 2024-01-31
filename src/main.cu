@@ -89,6 +89,13 @@ int main_func(const std::vector<std::string>& arguments) {
 		{"freeze"},
 	};
 
+	ValueFlag<float> trunc_flag{
+		parser,
+		"DECAY",
+		"What threshold do you want to use to decay density_grid.",
+		{"decay"},
+	};
+
 	PositionalList<string> files{
 		parser,
 		"files",
@@ -139,6 +146,9 @@ int main_func(const std::vector<std::string>& arguments) {
 		testbed.reload_network_from_file(get(network_config_flag));
 	}
 
+	if (trunc_flag) {
+		testbed.m_nerf.training.density_grid_decay = get(trunc_flag);
+	}
 	if (freeze_flag) {
 		tlog::none() << "Freeze the network and only train the encoding.";
 		testbed.freeze_network();
