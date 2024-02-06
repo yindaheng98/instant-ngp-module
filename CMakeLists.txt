@@ -55,6 +55,7 @@ if (MSVC)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP24")
 else()
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
 endif()
 
 set(CMAKE_CXX_STANDARD 14)
@@ -76,6 +77,9 @@ else()
 	list(APPEND CUDA_NVCC_FLAGS "-Xcompiler=-Wno-float-conversion")
 	list(APPEND CUDA_NVCC_FLAGS "-Xcompiler=-fno-strict-aliasing")
 	list(APPEND CUDA_NVCC_FLAGS "-Xcompiler=-fPIC")
+	list(APPEND CUDA_NVCC_FLAGS "-Xcompiler=-O3")
+	list(APPEND CUDA_NVCC_FLAGS "-Xptxas=-O3")
+	list(APPEND CUDA_NVCC_FLAGS "-O3")
 endif()
 list(APPEND CUDA_NVCC_FLAGS "--extended-lambda")
 list(APPEND CUDA_NVCC_FLAGS "--expt-relaxed-constexpr")
@@ -262,7 +266,6 @@ list(APPEND NGP_SOURCES
 	src/marching_cubes.cu
 	src/nerf_loader.cu
 	src/render_buffer.cu
-	src/testbed.cu
 	src/testbed_image.cu
 	src/testbed_nerf.cu
 	src/testbed_sdf.cu
@@ -326,13 +329,29 @@ if (NGP_OPTIX)
 	list(APPEND NGP_SOURCES ${OPTIX_PTX_HEADER})
 endif()
 
-add_library(ngp STATIC ${NGP_SOURCES})
+list(APPEND NGP_PLAYER_SOURCES
+	${NGP_SOURCES}
+	src/testbed.cu
+)
+add_library(ngp STATIC ${NGP_PLAYER_SOURCES})
 set_target_properties(ngp PROPERTIES CUDA_RESOLVE_DEVICE_SYMBOLS ON CUDA_SEPARABLE_COMPILATION ON)
 target_compile_definitions(ngp PUBLIC ${NGP_DEFINITIONS})
 target_compile_options(ngp PUBLIC $<$<COMPILE_LANGUAGE:CUDA>:${CUDA_NVCC_FLAGS}>)
 target_include_directories(ngp PUBLIC ${NGP_INCLUDE_DIRECTORIES})
 target_link_directories(ngp PUBLIC ${NGP_LINK_DIRECTORIES})
 target_link_libraries(ngp PUBLIC ${NGP_LIBRARIES} tiny-cuda-nn)
+
+list(APPEND NGP_TRAINER_SOURCES
+	${NGP_SOURCES}
+	src/testbed_trainer.cu
+)
+add_library(ngp-train STATIC ${NGP_TRAINER_SOURCES})
+set_target_properties(ngp-train PROPERTIES CUDA_RESOLVE_DEVICE_SYMBOLS ON CUDA_SEPARABLE_COMPILATION ON)
+target_compile_definitions(ngp-train PUBLIC ${NGP_DEFINITIONS})
+target_compile_options(ngp-train PUBLIC $<$<COMPILE_LANGUAGE:CUDA>:${CUDA_NVCC_FLAGS}>)
+target_include_directories(ngp-train PUBLIC ${NGP_INCLUDE_DIRECTORIES})
+target_link_directories(ngp-train PUBLIC ${NGP_LINK_DIRECTORIES})
+target_link_libraries(ngp-train PUBLIC ${NGP_LIBRARIES} tiny-cuda-nn)
 
 # Copy shared libraries to the binary directory as needed
 if (NGP_VULKAN)
@@ -344,32 +363,40 @@ if (NGP_VULKAN)
 	endif()
 
 	add_custom_command(TARGET ngp POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy "${NGX_SHARED_LIB}" "${CMAKE_CURRENT_BINARY_DIR}" COMMAND_EXPAND_LISTS)
+	add_custom_command(TARGET ngp-train POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy "${NGX_SHARED_LIB}" "${CMAKE_CURRENT_BINARY_DIR}" COMMAND_EXPAND_LISTS)
 endif()
 
 if (MSVC)
 	file(GLOB CUDA_DLLS "${CUDA_COMPILER_BIN}/cudart64*.dll")
 	if (CUDA_DLLS)
 		add_custom_command(TARGET ngp POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${CUDA_DLLS} "${CMAKE_CURRENT_BINARY_DIR}" COMMAND_EXPAND_LISTS)
+		add_custom_command(TARGET ngp-train POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${CUDA_DLLS} "${CMAKE_CURRENT_BINARY_DIR}" COMMAND_EXPAND_LISTS)
 	endif()
 endif()
 
 if (NGP_BUILD_EXECUTABLE)
 	add_executable(instant-ngp src/main.cu)
 	target_link_libraries(instant-ngp PRIVATE ngp)
+	add_executable(instant-ngp-train src/main_trainer.cu)
+	target_link_libraries(instant-ngp-train PRIVATE ngp-train)
 
 	# Link the executable to the project directory and copy over DLLs such that instant-ngp can be invoked without going into the build folder.
 	set(NGP_BINARY_FILE "\"${CMAKE_CURRENT_SOURCE_DIR}/$<TARGET_FILE_NAME:instant-ngp>\"")
+	set(NGP_TRAINER_BINARY_FILE "\"${CMAKE_CURRENT_SOURCE_DIR}/$<TARGET_FILE_NAME:instant-ngp-train>\"")
 	if (MSVC)
 		add_custom_command(TARGET instant-ngp POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:instant-ngp> ${CMAKE_CURRENT_SOURCE_DIR})
+		add_custom_command(TARGET instant-ngp-train POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:instant-ngp-train> ${CMAKE_CURRENT_SOURCE_DIR})
 		file(GLOB NGP_REQUIRED_DLLS "${CUDA_COMPILER_BIN}/cudart64*.dll")
 		if (NGP_VULKAN)
 			list(APPEND NGP_REQUIRED_DLLS "${NGX_SHARED_LIB}")
 		endif()
 		if (NGP_REQUIRED_DLLS)
 			add_custom_command(TARGET instant-ngp POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${NGP_REQUIRED_DLLS} ${CMAKE_CURRENT_SOURCE_DIR} COMMAND_EXPAND_LISTS)
+			add_custom_command(TARGET instant-ngp-train POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${NGP_REQUIRED_DLLS} ${CMAKE_CURRENT_SOURCE_DIR} COMMAND_EXPAND_LISTS)
 		endif()
 	else()
 		add_custom_command(TARGET instant-ngp POST_BUILD COMMAND ${CMAKE_COMMAND} -E create_symlink $<TARGET_FILE:instant-ngp> "${NGP_BINARY_FILE}")
+		add_custom_command(TARGET instant-ngp-train POST_BUILD COMMAND ${CMAKE_COMMAND} -E create_symlink $<TARGET_FILE:instant-ngp-train> "${NGP_TRAINER_BINARY_FILE}")
 	endif()
 endif(NGP_BUILD_EXECUTABLE)
 

@@ -9,6 +9,7 @@
 /venv
 /video
 /instant-ngp
+/instant-ngp-train
 /*.dll
 /*.exe
 /*.json
