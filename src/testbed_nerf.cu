@@ -2488,10 +2488,21 @@ void Testbed::train_nerf(uint32_t target_batch_size, bool get_loss_scalar, cudaS
 		CUDA_CHECK_THROW(cudaMemsetAsync(envmap_gradient, 0, sizeof(float)*m_envmap.envmap->n_params(), stream));
 	}
 
+	// yin: for ngp flow
+	if (m_nerf.training.optimize_encoding_only) {
+		m_nerf_network->save_density_network();
+		m_nerf_network->save_rgb_network();
+	}
+
 	train_nerf_step(target_batch_size, m_nerf.training.counters_rgb, stream);
 
-
 	m_trainer->optimizer_step(stream, LOSS_SCALE());
+
+	// yin: for ngp flow
+	if (m_nerf.training.optimize_encoding_only) {
+		m_nerf_network->freeze_density_network();
+		m_nerf_network->freeze_rgb_network();
+	}
 
 	++m_training_step;
 
@@ -2508,7 +2519,6 @@ void Testbed::train_nerf(uint32_t target_batch_size, bool get_loss_scalar, cudaS
 	if (zero_records) {
 		m_loss_scalar.set(0.f);
 		tlog::warning() << "Nerf training generated 0 samples. Aborting training.";
-		m_train = false;
 	}
 
 	// Compute CDFs from the error map

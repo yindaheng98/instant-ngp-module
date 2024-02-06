@@ -13,8 +13,7 @@
  */
 
 #pragma once
-#include <thread> // std::thread
-#include <queue> // std::queue
+
 #include <neural-graphics-primitives/adam_optimizer.h>
 #include <neural-graphics-primitives/camera_path.h>
 #include <neural-graphics-primitives/common.h>
@@ -27,19 +26,10 @@
 #include <neural-graphics-primitives/thread_pool.h>
 #include <neural-graphics-primitives/trainable_buffer.cuh>
 
-#ifdef NGP_GUI
-#  include <neural-graphics-primitives/openxr_hmd.h>
-#endif
-
 #include <tiny-cuda-nn/multi_stream.h>
 #include <tiny-cuda-nn/random.h>
 
 #include <json/json.hpp>
-
-#ifdef NGP_PYTHON
-#  include <pybind11/pybind11.h>
-#  include <pybind11/numpy.h>
-#endif
 
 #include <thread>
 
@@ -72,7 +62,6 @@ public:
 	Testbed(ETestbedMode mode, const fs::path& data_path, const nlohmann::json& network_config) : Testbed(mode, data_path) { reload_network_from_json(network_config); }
 
 	bool clear_tmp_dir();
-	void update_imgui_paths();
 	void load_training_data(const fs::path& path);
 	void reload_training_data();
 	void clear_training_data();
@@ -322,85 +311,20 @@ public:
 		const Foveation& foveation
 	);
 
-	void render_frame(
-		cudaStream_t stream,
-		const mat4x3& camera_matrix0,
-		const mat4x3& camera_matrix1,
-		const mat4x3& prev_camera_matrix,
-		const vec2& screen_center,
-		const vec2& relative_focal_length,
-		const vec4& nerf_rolling_shutter,
-		const Foveation& foveation,
-		const Foveation& prev_foveation,
-		int visualized_dimension,
-		CudaRenderBuffer& render_buffer,
-		bool to_srgb = true,
-		CudaDevice* device = nullptr
-	);
-	void render_frame_main(
-		CudaDevice& device,
-		const mat4x3& camera_matrix0,
-		const mat4x3& camera_matrix1,
-		const vec2& screen_center,
-		const vec2& relative_focal_length,
-		const vec4& nerf_rolling_shutter,
-		const Foveation& foveation,
-		int visualized_dimension
-	);
-	void render_frame_epilogue(
-		cudaStream_t stream,
-		const mat4x3& camera_matrix0,
-		const mat4x3& prev_camera_matrix,
-		const vec2& screen_center,
-		const vec2& relative_focal_length,
-		const Foveation& foveation,
-		const Foveation& prev_foveation,
-		CudaRenderBuffer& render_buffer,
-		bool to_srgb = true
-	);
-	void visualize_nerf_cameras(ImDrawList* list, const mat4& world2proj);
 	fs::path find_network_config(const fs::path& network_config_path);
 	nlohmann::json load_network_config(std::istream& stream, bool is_compressed);
 	nlohmann::json load_network_config(const fs::path& network_config_path);
 	void reload_network_from_file(const fs::path& path = "");
 	void reload_network_from_json(const nlohmann::json& json, const std::string& config_base_path=""); // config_base_path is needed so that if the passed in json uses the 'parent' feature, we know where to look... be sure to use a filename, or if a directory, end with a trailing slash
-	void reset_accumulation(bool due_to_camera_movement = false, bool immediate_redraw = true);
-	void redraw_next_frame() {
-		m_render_skip_due_to_lack_of_camera_movement_counter = 0;
-	}
-	bool reprojection_available() { return m_dlss; }
 	static ELossType string_to_loss_type(const std::string& str);
 	void reset_network(bool clear_density_grid = true);
 	void create_empty_nerf_dataset(size_t n_images, int aabb_scale = 1, bool is_hdr = false);
 	void load_nerf(const fs::path& data_path);
 	void load_nerf_post();
 	void load_mesh(const fs::path& data_path);
-	void set_exposure(float exposure) { m_exposure = exposure; }
 	void set_max_level(float maxlevel);
-	void set_visualized_dim(int dim);
-	void set_visualized_layer(int layer);
-	void translate_camera(const vec3& rel, const mat3& rot, bool allow_up_down = true);
-	mat3 rotation_from_angles(const vec2& angles) const;
-	void mouse_drag();
-	void mouse_wheel();
 	void load_file(const fs::path& path);
-	void set_nerf_camera_matrix(const mat4x3& cam);
-	vec3 look_at() const;
-	void set_look_at(const vec3& pos);
 	float scale() const { return m_scale; }
-	void set_scale(float scale);
-	vec3 view_pos() const { return m_camera[3]; }
-	vec3 view_dir() const { return m_camera[2]; }
-	vec3 view_up() const { return m_camera[1]; }
-	vec3 view_side() const { return m_camera[0]; }
-	void set_view_dir(const vec3& dir);
-	void first_training_view();
-	void last_training_view();
-	void previous_training_view();
-	void next_training_view();
-	void set_camera_to_training_view(int trainview);
-	void reset_camera();
-	bool keyboard_event();
 	void generate_training_samples_sdf(vec3* positions, float* distances, uint32_t n_to_generate, cudaStream_t stream, bool uniform_only);
 	void update_density_grid_nerf(float decay, uint32_t n_uniform_density_grid_samples, uint32_t n_nonuniform_density_grid_samples, cudaStream_t stream);
 	void update_density_grid_mean_and_bitfield(cudaStream_t stream);
@@ -424,19 +348,15 @@ public:
 	void train_nerf_step(uint32_t target_batch_size, NerfCounters& counters, cudaStream_t stream);
 	void train_sdf(size_t target_batch_size, bool get_loss_scalar, cudaStream_t stream);
 	void train_image(size_t target_batch_size, bool get_loss_scalar, cudaStream_t stream);
-	void set_train(bool mtrain);
 
 	template <typename T>
 	void dump_parameters_as_images(const T* params, const std::string& filename_base);
 
-	void prepare_next_camera_path_frame();
-	void imgui();
 	void training_prep_nerf(uint32_t batch_size, cudaStream_t stream);
 	void training_prep_sdf(uint32_t batch_size, cudaStream_t stream);
 	void training_prep_image(uint32_t batch_size, cudaStream_t stream) {}
+	void freeze_network();
 	void train(uint32_t batch_size);
-	vec2 calc_focal_length(const ivec2& resolution, const vec2& relative_focal_length, int fov_axis, float zoom) const;
-	vec2 render_screen_center(const vec2& screen_center) const;
 	void optimise_mesh_step(uint32_t N_STEPS);
 	void compute_mesh_vertex_colors();
 	GPUMemory<float> get_density_on_grid(ivec3 res3d, const BoundingBox& aabb, const mat3& render_aabb_to_local); // network version (nerf or sdf)
@@ -444,109 +364,24 @@ public:
 	GPUMemory<vec4> get_rgba_on_grid(ivec3 res3d, vec3 ray_dir, bool voxel_centers, float depth, bool density_as_alpha = false);
 	int marching_cubes(ivec3 res3d, const BoundingBox& render_aabb, const mat3& render_aabb_to_local, float thresh);
 
-	float get_depth_from_renderbuffer(const CudaRenderBuffer& render_buffer, const vec2& uv);
-	vec3 get_3d_pos_from_pixel(const CudaRenderBuffer& render_buffer, const vec2& focus_pixel);
-	void autofocus();
 	size_t n_params();
 	size_t first_encoder_param();
 	size_t n_encoding_params();
 
-#ifdef NGP_PYTHON
-	pybind11::dict compute_marching_cubes_mesh(ivec3 res3d = ivec3(128), BoundingBox aabb = BoundingBox{vec3(0.0f), vec3(1.0f)}, float thresh=2.5f);
-	pybind11::array_t<float> render_to_cpu(int width, int height, int spp, bool linear, float start_t, float end_t, float fps, float shutter_fraction);
-	pybind11::array_t<float> view(bool linear, size_t view) const;
-	pybind11::array_t<float> screenshot(bool linear, bool front_buffer) const;
-	void override_sdf_training_data(pybind11::array_t<float> points, pybind11::array_t<float> distances);
-	// void load_params(pybind11::array_t<float> params, pybind11::array_t<int> index); // yin: for ngp flow
-	// void diff_params(pybind11::array_t<float> params_diff, pybind11::array_t<int> index); // yin: for ngp flow
-	// void load_density_grid(pybind11::array_t<float> density_grid, pybind11::array_t<int> index); // yin: for ngp flow
-	// void diff_density_grid(pybind11::array_t<float> density_grid_diff, pybind11::array_t<int> index); // yin: for ngp flow
-	// void load_params_enqueue_py(pybind11::array_t<float> params, pybind11::array_t<int> index); // yin: for ngp flow
-	// void diff_params_enqueue_py(pybind11::array_t<float> params, pybind11::array_t<int> index); // yin: for ngp flow
-	// void load_density_grid_enqueue_py(pybind11::array_t<float> density_grid, pybind11::array_t<int> index); // yin: for ngp flow
-	// void diff_density_grid_enqueue_py(pybind11::array_t<float> density_grid, pybind11::array_t<int> index); // yin: for ngp flow
-#endif
-	bool load_frame_enqueue(const fs::path& path); // yin: for ngp flow
-	bool diff_frame_enqueue(const fs::path& path); // yin: for ngp flow
-	bool load_frame_dequeue(); // yin: for ngp flow
-	bool diff_frame_dequeue(); // yin: for ngp flow
-	bool diff_frame_nonzero_dequeue(); // yin: for ngp flow
-	int max_read_frame_thread_n = 16; // yin: for ngp flow
-private:
-	struct QueueObj { // yin: for ngp flow
-		__half* params;
-		uint32_t* params_index;
-		size_t params_size;
-		__half* density_grid;
-		uint32_t* density_grid_index;
-		size_t density_grid_size;
-	};
-	std::queue<QueueObj> load_frame_queue; // yin: for ngp flow
-	std::queue<QueueObj> diff_frame_queue; // yin: for ngp flow
-	std::thread last_update_frame_thread; // yin: for ngp flow
-	bool frame_data_enqueue(const fs::path& path, std::queue<QueueObj>& queue); // yin: for ngp flow
-	std::atomic<int> read_frame_thread_counter = {0}; // yin: for ngp flow
-public:
-	void set_params(__half* params_gpu, uint32_t* index_gpu, size_t n); // yin: for ngp flow
-	void set_params(__half* params_gpu, size_t n); // yin: for ngp flow
-	void add_params(__half* params_gpu, uint32_t* index_gpu, size_t n); // yin: for ngp flow
-	void add_params(__half* params_gpu, size_t n); // yin: for ngp flow
-	// void set_params_load_cache_size(size_t size); // yin: for ngp flow
-	void set_density_grid(__half* density_grid_gpu, uint32_t* index_gpu, size_t n); // yin: for ngp flow
-	void set_density_grid(__half* density_grid_gpu, size_t n); // yin: for ngp flow
-	void add_density_grid(__half* density_grid_gpu, uint32_t* index_gpu, size_t n); // yin: for ngp flow
-	void add_density_grid(__half* density_grid_gpu, size_t n); // yin: for ngp flow
-	// void set_density_grid_load_cache_size(size_t size); // yin: for ngp flow
-	void join_last_update_frame_thread(); // yin: for ngp flow
-// private:
-// 	GPUMemory<__half> params_gpu; // yin: for ngp flow
-// 	GPUMemory<uint32_t> params_index_gpu; // yin: for ngp flow
-// 	GPUMemory<__half> density_grid_gpu; // yin: for ngp flow
-// 	GPUMemory<uint32_t> density_grid_index_gpu; // yin: for ngp flow
-
-public:
 	double calculate_iou(uint32_t n_samples=128*1024*1024, float scale_existing_results_factor=0.0, bool blocking=true, bool force_use_octree = true);
-	void draw_visualizations(ImDrawList* list, const mat4x3& camera_matrix);
 	void train_and_render(bool skip_rendering);
 	fs::path training_data_path() const;
-	void init_window(int resw, int resh, bool hidden = false, bool second_window = false);
-	void destroy_window();
-	void init_vr();
-	void update_vr_performance_settings();
-	void apply_camera_smoothing(float elapsed_ms);
-	bool begin_frame();
-	void handle_user_input();
-	vec3 vr_to_world(const vec3& pos) const;
-	void begin_vr_frame_and_handle_vr_input();
-	void gather_histograms();
-	void draw_gui();
 	bool frame();
-	bool want_repl();
 	void load_image(const fs::path& data_path);
 	void load_exr_image(const fs::path& data_path);
 	void load_stbi_image(const fs::path& data_path);
 	void load_binary_image(const fs::path& data_path);
-	uint32_t n_dimensions_to_visualize() const;
-	float fov() const ;
-	void set_fov(float val) ;
-	vec2 fov_xy() const ;
-	void set_fov_xy(const vec2& val);
 	void save_snapshot(const fs::path& path, bool include_optimizer_state, bool compress);
 	void load_snapshot(nlohmann::json config);
 	void load_snapshot(const fs::path& path);
 	void load_snapshot(std::istream& stream, bool is_compressed = true);
-	CameraKeyframe copy_camera_to_keyframe() const;
-	void set_camera_from_keyframe(const CameraKeyframe& k);
-	void set_camera_from_time(float t);
-	void update_loss_graph();
-	void load_camera_path(const fs::path& path);
-	bool loop_animation();
-	void set_loop_animation(bool value);
 
 	float compute_image_mse(bool quantize_to_byte);
-
-	void compute_and_save_marching_cubes_mesh(const fs::path& filename, ivec3 res3d = ivec3(128), BoundingBox aabb = {}, float thresh = 2.5f, bool unwrap_it = false);
-	ivec3 compute_and_save_png_slices(const fs::path& filename, int res, BoundingBox aabb = {}, float thresh = 2.5f, float density_range = 4.f, bool flip_y_and_z_axes = false);
 
 	fs::path root_dir();
 	void set_root_dir(const fs::path& dir);
@@ -582,104 +417,27 @@ public:
 		}
 	};
 	MeshState m_mesh;
-	bool m_want_repl = false;
 
-	bool m_render_window = false;
-	bool m_gather_histograms = false;
-
-	bool m_include_optimizer_state_in_snapshot = false;
-	bool m_compress_snapshot = true;
 	bool m_render_ground_truth = false;
-	EGroundTruthRenderMode m_ground_truth_render_mode = EGroundTruthRenderMode::Shade;
-	float m_ground_truth_alpha = 1.0f;
 
-	bool m_train = false;
 	bool m_training_data_available = false;
-	bool m_render = true;
-	int m_max_spp = 0;
 	ETestbedMode m_testbed_mode = ETestbedMode::None;
 	bool m_max_level_rand_training = false;
 
 	// Rendering stuff
-	ivec2 m_window_res = ivec2(0);
-	bool m_dynamic_res = true;
-	float m_dynamic_res_target_fps = 20.0f;
-	int m_fixed_res_factor = 8;
 	float m_scale = 1.0;
 	float m_aperture_size = 0.0f;
-	vec2 m_relative_focal_length = vec2(1.0f);
-	uint32_t m_fov_axis = 1;
-	float m_zoom = 1.f; // 2d zoom factor (for insets?)
 	vec2 m_screen_center = vec2(0.5f); // center of 2d zoom
 
-	float m_ndc_znear = 1.0f / 32.0f;
-	float m_ndc_zfar = 128.0f;
-
-	mat4x3 m_camera = mat4x3::identity();
-	mat4x3 m_smoothed_camera = mat4x3::identity();
 	size_t m_render_skip_due_to_lack_of_camera_movement_counter = 0;
-
-	bool m_fps_camera = false;
-	bool m_camera_smoothing = false;
-	bool m_autofocus = false;
-	vec3 m_autofocus_target = vec3(0.5f);
-
-	CameraPath m_camera_path = {};
 
 	vec3 m_up_dir = {0.0f, 1.0f, 0.0f};
 	vec3 m_sun_dir = normalize(vec3(1.0f));
 	float m_bounding_radius = 1;
-	float m_exposure = 0.f;
 
 	ERenderMode m_render_mode = ERenderMode::Shade;
-	EMeshRenderMode m_mesh_render_mode = EMeshRenderMode::VertexNormals;
 
 	uint32_t m_seed = 1337;
-
-#ifdef NGP_GUI
-	GLFWwindow* m_glfw_window = nullptr;
-	struct SecondWindow {
-		GLFWwindow* window = nullptr;
-		GLuint program = 0;
-		GLuint vao = 0, vbo = 0;
-		void draw(GLuint texture);
-	} m_second_window;
-
-	float m_drag_depth = 1.0f;
-
-	// The VAO will be empty, but we need a valid one for attribute-less rendering
-	GLuint m_blit_vao = 0;
-	GLuint m_blit_program = 0;
-
-	void init_opengl_shaders();
-	void blit_texture(const Foveation& foveation, GLint rgba_texture, GLint rgba_filter_mode, GLint depth_texture, GLint framebuffer, const ivec2& offset, const ivec2& resolution);
-
-	void create_second_window();
-
-	std::unique_ptr<OpenXRHMD> m_hmd;
-	OpenXRHMD::FrameInfoPtr m_vr_frame_info;
-	bool m_vr_use_depth_reproject = false;
-	bool m_vr_use_hidden_area_mask = true;
-
-	void set_n_views(size_t n_views);
-
-	std::function<bool()> m_keyboard_event_callback;
-
-	std::shared_ptr<GLTexture> m_pip_render_texture;
-	std::vector<std::shared_ptr<GLTexture>> m_rgba_render_textures;
-	std::vector<std::shared_ptr<GLTexture>> m_depth_render_textures;
-#endif
-
-
-	std::unique_ptr<CudaRenderBuffer> m_pip_render_buffer;
-
-	SharedQueue<std::unique_ptr<ICallable>> m_task_queue;
-
-	void redraw_gui_next_frame() {
-		m_gui_redraw = true;
-	}
-
-	bool m_gui_redraw = true;
 
 	struct Nerf {
 		struct Training {
@@ -931,12 +689,8 @@ public:
 		GPUMemory<vec4> radiance_and_density;
 	} m_volume;
 
-	float m_camera_velocity = 1.0f;
 	EColorSpace m_color_space = EColorSpace::Linear;
-	ETonemapCurve m_tonemap_curve = ETonemapCurve::Identity;
 	bool m_dlss = false;
-	std::shared_ptr<IDlssProvider> m_dlss_provider;
-	float m_dlss_sharpening = 0.0f;
 
 	// 3D stuff
 	float m_render_near_distance = 0.0f;
@@ -948,69 +702,18 @@ public:
 	BoundingBox m_render_aabb;
 	mat3 m_render_aabb_to_local = mat3::identity();
 
-	mat4x3 crop_box(bool nerf_space) const;
-	std::vector<vec3> crop_box_corners(bool nerf_space) const;
-	void set_crop_box(mat4x3 m, bool nerf_space);
-
 	// Rendering/UI bookkeeping
 	Ema m_training_prep_ms = {EEmaType::Time, 100};
 	Ema m_training_ms = {EEmaType::Time, 100};
-	Ema m_render_ms = {EEmaType::Time, 100};
 	// The frame contains everything, i.e. training + rendering + GUI and buffer swapping
-	Ema m_frame_ms = {EEmaType::Time, 100};
-	std::chrono::time_point<std::chrono::steady_clock> m_last_frame_time_point;
 	std::chrono::time_point<std::chrono::steady_clock> m_last_gui_draw_time_point;
 	std::chrono::time_point<std::chrono::steady_clock> m_training_start_time_point;
 	vec4 m_background_color = {0.0f, 0.0f, 0.0f, 1.0f};
 
-	bool m_vsync = false;
-	bool m_render_transparency_as_checkerboard = false;
-
 	// Visualization of neuron activations
-	int m_visualized_dimension = -1;
 	int m_visualized_layer = 0;
 
-	struct View {
-		std::shared_ptr<CudaRenderBuffer> render_buffer;
-		ivec2 full_resolution = {1, 1};
-		int visualized_dimension = 0;
-
-		mat4x3 camera0 = mat4x3::identity();
-		mat4x3 camera1 = mat4x3::identity();
-		mat4x3 prev_camera = mat4x3::identity();
-
-		Foveation foveation;
-		Foveation prev_foveation;
-
-		vec2 relative_focal_length;
-		vec2 screen_center;
-
-		CudaDevice* device = nullptr;
-	};
-
-	std::vector<View> m_views;
-	ivec2 m_n_views = {1, 1};
-
-	bool m_single_view = true;
-
-	float m_picture_in_picture_res = 0.f; // if non zero, requests a small second picture :)
-
-	struct ImGuiVars {
-		static const uint32_t MAX_PATH_LEN = 1024;
-
-		bool enabled = true; // tab to toggle
-		char cam_path_path[MAX_PATH_LEN] = "cam.json";
-		char extrinsics_path[MAX_PATH_LEN] = "extrinsics.json";
-		char mesh_path[MAX_PATH_LEN] = "base.obj";
-		char snapshot_path[MAX_PATH_LEN] = "base.ingp";
-		char video_path[MAX_PATH_LEN] = "video.mp4";
-	} m_imgui;
-
 	fs::path m_root_dir = "";
-
-	bool m_visualize_unit_cube = false;
-	bool m_edit_render_aabb = false;
-	bool m_edit_world_transform = true;
 
 	bool m_snap_to_pixel_centers = false;
 
@@ -1020,25 +723,14 @@ public:
 	StreamAndEvent m_stream;
 
 	// Hashgrid encoding analysis
-	float m_quant_percent = 0.f;
-	std::vector<LevelStats> m_level_stats;
-	std::vector<LevelStats> m_first_layer_column_stats;
 	uint32_t m_n_levels = 0;
 	uint32_t m_n_features_per_level = 0;
-	uint32_t m_histo_level = 0; // collect a histogram for this level
 	uint32_t m_base_grid_resolution;
 	float m_per_level_scale;
-	float m_histo[257] = {};
-	float m_histo_scale = 1.f;
 
 	uint32_t m_training_step = 0;
 	uint32_t m_training_batch_size = 1 << 18;
 	Ema m_loss_scalar = {EEmaType::Time, 100};
-	std::vector<float> m_loss_graph = std::vector<float>(256, 0.0f);
-	size_t m_loss_graph_samples = 0;
-
-	bool m_train_encoding = true;
-	bool m_train_network = true;
 
 	class CudaDevice {
 	public:
@@ -1087,14 +779,6 @@ public:
 
 		void signal(cudaStream_t stream) const {
 			m_stream->signal(stream);
-		}
-
-		const CudaRenderBufferView& render_buffer_view() const {
-			return m_render_buffer_view;
-		}
-
-		void set_render_buffer_view(const CudaRenderBufferView& view) {
-			m_render_buffer_view = view;
 		}
 
 		Data& data() const {
@@ -1173,7 +857,6 @@ public:
 	};
 
 	void sync_device(CudaRenderBuffer& render_buffer, CudaDevice& device);
-	ScopeGuard use_device(cudaStream_t stream, CudaRenderBuffer& render_buffer, CudaDevice& device);
 	void set_all_devices_dirty();
 
 	std::vector<CudaDevice> m_devices;
@@ -1181,16 +864,6 @@ public:
 		return m_devices.front();
 	}
 
-	ThreadPool m_thread_pool;
-	std::vector<std::future<void>> m_render_futures;
-
-	bool m_use_aux_devices = false;
-	bool m_foveated_rendering = false;
-	bool m_dynamic_foveated_rendering = true;
-	float m_foveated_rendering_full_res_diameter = 0.55f;
-	float m_foveated_rendering_scaling = 1.0f;
-	float m_foveated_rendering_max_scaling = 2.0f;
-	bool m_foveated_rendering_visualize = false;
 
 	fs::path m_data_path;
 	fs::path m_network_config_path = "base.json";
@@ -1198,8 +871,6 @@ public:
 	nlohmann::json m_network_config;
 
 	default_rng_t m_rng;
-
-	CudaRenderBuffer m_windowless_render_surface{std::make_shared<CudaSurface2D>()};
 
 	uint32_t network_width(uint32_t layer) const;
 	uint32_t network_num_forward_activations() const;
