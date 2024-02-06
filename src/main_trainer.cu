@@ -12,7 +12,7 @@
  *  @author Thomas Müller, NVIDIA
  */
 
-#include <neural-graphics-primitives/testbed.h>
+#include <neural-graphics-primitives/testbed_trainer.h>
 
 #include <tiny-cuda-nn/common.h>
 
