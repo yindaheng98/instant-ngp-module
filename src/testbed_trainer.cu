@@ -20,7 +20,7 @@
 #include <neural-graphics-primitives/nerf_network.h>
 #include <neural-graphics-primitives/render_buffer.h>
 #include <neural-graphics-primitives/takikawa_encoding.cuh>
-#include <neural-graphics-primitives/testbed_trainer.h>
+#include <neural-graphics-primitives/testbed.h>
 #include <neural-graphics-primitives/tinyexr_wrapper.h>
 #include <neural-graphics-primitives/trainable_buffer.cuh>
 #include <neural-graphics-primitives/triangle_bvh.cuh>

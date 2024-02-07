@@ -434,6 +434,7 @@ public:
 	void training_prep_nerf(uint32_t batch_size, cudaStream_t stream);
 	void training_prep_sdf(uint32_t batch_size, cudaStream_t stream);
 	void training_prep_image(uint32_t batch_size, cudaStream_t stream) {}
+	void freeze_network();
 	void train(uint32_t batch_size);
 	vec2 calc_focal_length(const ivec2& resolution, const vec2& relative_focal_length, int fov_axis, float zoom) const;
 	vec2 render_screen_center(const vec2& screen_center) const;
