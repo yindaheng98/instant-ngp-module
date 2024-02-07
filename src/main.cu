@@ -268,10 +268,15 @@ int main_func(const std::vector<std::string>& arguments) {
 				}
 			}
 		}
-		if (testbed.diff_frame_dequeue())
-			tlog::info() << "ok diff_frame_dequeue";
-		if (testbed.load_frame_dequeue())
-			tlog::info() << "ok load_frame_dequeue";
+		auto start = std::chrono::steady_clock::now();
+		if (testbed.diff_frame_dequeue()) {
+			auto end = std::chrono::steady_clock::now();
+			tlog::info() << std::chrono::duration<float>(end - start).count() << "s ok diff_frame_dequeue";
+		}
+		if (testbed.load_frame_dequeue()) {
+			auto end = std::chrono::steady_clock::now();
+			tlog::info() << std::chrono::duration<float>(end - start).count() << "s ok load_frame_dequeue";
+		}
 		testbed.reset_accumulation();
 	}
 	testbed.join_last_update_frame_thread();
