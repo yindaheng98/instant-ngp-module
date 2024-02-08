@@ -378,6 +378,8 @@ endif()
 if (NGP_BUILD_EXECUTABLE)
 	add_executable(instant-ngp src/main.cu)
 	target_link_libraries(instant-ngp PRIVATE ngp)
+	add_executable(instant-ngp-viewer src/main_frameviewer.cu)
+	target_link_libraries(instant-ngp-viewer PRIVATE ngp)
 	add_executable(instant-ngp-train src/main_trainer.cu)
 	target_link_libraries(instant-ngp-train PRIVATE ngp-train)
 
