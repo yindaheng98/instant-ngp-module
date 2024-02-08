@@ -61,6 +61,8 @@ class TriangleOctree;
 class TriangleBvh;
 struct Triangle;
 class GLTexture;
+int do_system(const std::string& cmd);
+json merge_parent_network_config(const json& child, const fs::path& child_path);
 
 class Testbed {
 public:

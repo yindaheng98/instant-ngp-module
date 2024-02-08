@@ -81,13 +81,6 @@ int main_func(const std::vector<std::string>& arguments) {
 		{"vr"}
 	};
 
-	Flag no_train_flag{
-		parser,
-		"NO_TRAIN",
-		"Disables training on startup.",
-		{"no-train"},
-	};
-
 	ValueFlag<string> scene_flag{
 		parser,
 		"SCENE",
@@ -212,7 +205,7 @@ int main_func(const std::vector<std::string>& arguments) {
 		testbed.reload_network_from_file(get(network_config_flag));
 	}
 
-	testbed.m_train = !no_train_flag;
+	testbed.m_train = false;
 
 #ifdef NGP_GUI
 	bool gui = !no_gui_flag;
