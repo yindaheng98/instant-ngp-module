@@ -89,6 +89,13 @@ int main_func(const std::vector<std::string>& arguments) {
 		{"snapshot", "load_snapshot"},
 	};
 
+	ValueFlag<float> trunc_flag{
+		parser,
+		"DECAY",
+		"What threshold do you want to use to decay density_grid.",
+		{"decay"},
+	};
+
 	ValueFlag<uint32_t> width_flag{
 		parser,
 		"WIDTH",
@@ -162,6 +169,10 @@ int main_func(const std::vector<std::string>& arguments) {
 		testbed.load_snapshot(static_cast<fs::path>(get(snapshot_flag)));
 	} else if (network_config_flag) {
 		testbed.reload_network_from_file(get(network_config_flag));
+	}
+
+	if (trunc_flag) {
+		testbed.m_nerf.training.density_grid_decay = get(trunc_flag);
 	}
 
 	testbed.m_train = !no_train_flag;
