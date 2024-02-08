@@ -26,19 +26,6 @@ using namespace std;
 
 namespace ngp {
 
-template< typename... Args >
-std::string string_sprintf( const char* format, Args... args ) {
-  int length = std::snprintf( nullptr, 0, format, args... );
-  assert( length >= 0 );
-
-  char* buf = new char[length + 1];
-  std::snprintf( buf, length + 1, format, args... );
-
-  std::string str( buf );
-  delete[] buf;
-  return str;
-}
-
 int main_func(const std::vector<std::string>& arguments) {
 	ArgumentParser parser{
 		"Instant Neural Graphics Primitives\n"
@@ -79,6 +66,13 @@ int main_func(const std::vector<std::string>& arguments) {
 		"VR",
 		"Enables VR",
 		{"vr"}
+	};
+
+	Flag no_train_flag{
+		parser,
+		"NO_TRAIN",
+		"Disables training on startup.",
+		{"no-train"},
 	};
 
 	ValueFlag<string> scene_flag{
@@ -170,7 +164,7 @@ int main_func(const std::vector<std::string>& arguments) {
 		testbed.reload_network_from_file(get(network_config_flag));
 	}
 
-	testbed.m_train = false;
+	testbed.m_train = !no_train_flag;
 
 #ifdef NGP_GUI
 	bool gui = !no_gui_flag;
@@ -191,9 +185,7 @@ int main_func(const std::vector<std::string>& arguments) {
 		if (!gui) {
 			tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val();
 		}
-		testbed.reset_accumulation();
 	}
-	testbed.join_last_update_frame_thread();
 
 	return 0;
 }

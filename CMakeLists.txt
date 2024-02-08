@@ -333,6 +333,7 @@ endif()
 list(APPEND NGP_PLAYER_SOURCES
 	${NGP_SOURCES}
 	src/testbed.cu
+	src/testbed_origin.cu
 )
 add_library(ngp STATIC ${NGP_PLAYER_SOURCES})
 set_target_properties(ngp PROPERTIES CUDA_RESOLVE_DEVICE_SYMBOLS ON CUDA_SEPARABLE_COMPILATION ON)
