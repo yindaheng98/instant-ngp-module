@@ -354,6 +354,9 @@ NerfDataset load_nerf(const std::vector<fs::path>& jsonpaths, float sharpen_amou
 			if (frame.contains("depth_path")) {
 				frame["depth_path"] = replace_all(frame["depth_path"], "\\", "/");
 			}
+			if (frame.contains("mask_path")) {
+				frame["mask_path"] = replace_all(frame["mask_path"], "\\", "/");
+			}
 		}
 
 		if (json.contains("n_frames")) {
@@ -594,7 +597,11 @@ NerfDataset load_nerf(const std::vector<fs::path>& jsonpaths, float sharpen_amou
 				}
 
 				fs::path maskpath = path.parent_path() / fmt::format("dynamic_mask_{}.png", path.basename());
+				if (frame.contains("mask_path")) {
+					maskpath = resolve_path(base_path, frame["mask_path"]);
+				}
 				if (maskpath.exists()) {
+					tlog::info() << path << "<-mask-" << maskpath;
 					int wa = 0, ha = 0;
 					uint8_t* mask_img = load_stbi(maskpath, &wa, &ha, &comp, 4);
 					if (!mask_img) {
