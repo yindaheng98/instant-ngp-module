@@ -18,14 +18,14 @@ python3 scripts/train_seq.py \
     --trainargs=--decay=0.5 \
     --initformat "data/nerf/walking/frame%d" \
     --dataformat "data/nerf/walking/residuals/frame%d" \
-    --saveformat "results/stnerf-walking-1000steps/frame%d.bson" \
+    --saveformat "results/stnerf-walking-partial/frame%d.bson" \
     --executable "./instant-ngp-train"
 python3 scripts/train_seq.py \
     --init_steps 10000 --steps 1000 --start 1 --end 75 \
     --trainargs=--decay=0.5 \
     --initformat "data/nerf/walking/frame%d" \
     --dataformat "data/nerf/walking/frame%d" \
-    --saveformat "results/stnerf-walking-partial/frame%d.bson" \
+    --saveformat "results/stnerf-walking-1000steps/frame%d.bson" \
     --executable "./instant-ngp-train"
 
 python3 scripts/train_seq.py \
