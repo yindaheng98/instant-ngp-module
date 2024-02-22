@@ -2489,7 +2489,7 @@ void Testbed::train_nerf(uint32_t target_batch_size, bool get_loss_scalar, cudaS
 	}
 
 	// yin: for ngp flow
-	if (m_nerf.training.optimize_encoding_only) {
+	if (!m_train_encoding || !m_train_network) {
 		m_nerf_network->save_params();
 		m_nerf_network->save_params_fp();
 	}
@@ -2499,9 +2499,13 @@ void Testbed::train_nerf(uint32_t target_batch_size, bool get_loss_scalar, cudaS
 	m_trainer->optimizer_step(stream, LOSS_SCALE());
 
 	// yin: for ngp flow
-	if (m_nerf.training.optimize_encoding_only) {
+	if (!m_train_encoding) {
 		m_nerf_network->freeze_density_network();
 		m_nerf_network->freeze_rgb_network();
+	}
+	if (!m_train_network) {
+		m_nerf_network->freeze_pos_encoding();
+		m_nerf_network->freeze_dir_encoding();
 	}
 
 	++m_training_step;

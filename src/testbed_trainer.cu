@@ -222,12 +222,6 @@ Testbed::~Testbed() {
 	clear_tmp_dir();
 }
 
-void Testbed::freeze_network() {
-	if (m_testbed_mode == ETestbedMode::Nerf) {
-		m_nerf.training.optimize_encoding_only = true;
-	}
-}
-
 void Testbed::train(uint32_t batch_size) {
 	if (!m_training_data_available) {
 		tlog::warning() << "No dataset. Aborting training.";
