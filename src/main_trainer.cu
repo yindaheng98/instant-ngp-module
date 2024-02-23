@@ -151,7 +151,8 @@ int main_func(const std::vector<std::string>& arguments) {
 	}
 	if (freeze_flag) {
 		tlog::none() << "Freeze the network and only train the encoding.";
-		testbed.m_train_encoding = false;
+		testbed.m_train_encoding = true;
+		testbed.m_train_network = false;
 	}
 
 	// Render/training loop

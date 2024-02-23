@@ -275,6 +275,8 @@ void Testbed::train(uint32_t batch_size) {
 	while (leaf_optimizer_config->contains("nested")) {
 		leaf_optimizer_config = &(*leaf_optimizer_config)["nested"];
 	}
+	(*leaf_optimizer_config)["optimize_matrix_params"] = m_train_network;
+	(*leaf_optimizer_config)["optimize_non_matrix_params"] = m_train_encoding;
 	m_optimizer->update_hyperparams(m_network_config["optimizer"]);
 
 	bool get_loss_scalar = m_training_step % 16 == 0;
