@@ -2490,8 +2490,7 @@ void Testbed::train_nerf(uint32_t target_batch_size, bool get_loss_scalar, cudaS
 
 	// yin: for ngp flow
 	if (!m_train_encoding || !m_train_network) {
-		m_nerf_network->save_params();
-		m_nerf_network->save_params_fp();
+		m_nerf_network->init_params_backup();
 	}
 
 	train_nerf_step(target_batch_size, m_nerf.training.counters_rgb, stream);

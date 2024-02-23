@@ -386,20 +386,19 @@ public:
 		params_full_precision += m_dir_encoding->n_params();
 	}
 
-	void save_params() { // yin: for ngp flow
-		if (backup_params == nullptr || backup_inference_params == nullptr) { // if not saved
+	void init_params_backup() { // yin: for ngp flow
+		if (backup_params == nullptr) { // if not saved
 			CUDA_CHECK_THROW(cudaMalloc(reinterpret_cast<void**>(&backup_params), n_params() * sizeof(T)));
 			parallel_for_gpu(n_params(), [b_params=backup_params, c_params=params()] __device__ (size_t i) {
 				b_params[i] = c_params[i]; // save
 			});
+		}
+		if (backup_inference_params == nullptr) { // if not saved
 			CUDA_CHECK_THROW(cudaMalloc(reinterpret_cast<void**>(&backup_inference_params), n_params() * sizeof(T)));
 			parallel_for_gpu(n_params(), [b_params=backup_inference_params, c_params=inference_params()] __device__ (size_t i) {
 				b_params[i] = c_params[i]; // save
 			});
 		}
-	}
-
-	void save_params_fp() { // yin: for ngp flow
 		if (backup_params_fp == nullptr) { // if not saved
 			CUDA_CHECK_THROW(cudaMalloc(reinterpret_cast<void**>(&backup_params_fp), n_params() * sizeof(float)));
 			parallel_for_gpu(n_params(), [b_params=backup_params_fp, c_params=params_fp] __device__ (size_t i) {
@@ -410,51 +409,39 @@ public:
 
 	void freeze_params(size_t offset, size_t n) { // yin: for ngp flow
 		if (n <= 0) return;
-		if (backup_params != nullptr && backup_inference_params != nullptr) { // if saved
+		if (backup_params != nullptr && backup_inference_params != nullptr && backup_params_fp != nullptr) { // if saved
 			parallel_for_gpu(n, [b_params=backup_params, c_params=params(), offset] __device__ (size_t i) {
 				c_params[i + offset] = b_params[i + offset]; // copy back
 			});
 			parallel_for_gpu(n, [b_params=backup_inference_params, c_params=inference_params(), offset] __device__ (size_t i) {
 				c_params[i + offset] = b_params[i + offset]; // copy back
 			});
-		} else {
-			save_params();
-		}
-	}
-
-	void freeze_params_fp(size_t offset, size_t n) { // yin: for ngp flow
-		if (n <= 0) return;
-		if (backup_params_fp != nullptr) {
 			parallel_for_gpu(n, [b_params=backup_params_fp, c_params=params_fp, offset] __device__ (size_t i) {
 				c_params[i + offset] = b_params[i + offset];
 			});
 		} else {
-			save_params_fp();
+			init_params_backup();
 		}
 	}
 
 	void freeze_density_network() { // yin: for ngp flow
 		size_t offset = 0; // see above initialize_params
 		freeze_params(offset, m_density_network->n_params());
-		freeze_params_fp(offset, m_density_network->n_params());
 	}
 
 	void freeze_rgb_network() { // yin: for ngp flow
 		size_t offset = m_density_network->n_params(); // see above initialize_params
 		freeze_params(offset, m_rgb_network->n_params());
-		freeze_params_fp(offset, m_rgb_network->n_params());
 	}
 
 	void freeze_pos_encoding() { // yin: for ngp flow
 		size_t offset = m_density_network->n_params() + m_rgb_network->n_params(); // see above initialize_params
 		freeze_params(offset, m_pos_encoding->n_params());
-		freeze_params_fp(offset, m_pos_encoding->n_params());
 	}
 
 	void freeze_dir_encoding() { // yin: for ngp flow
 		size_t offset = m_density_network->n_params() + m_rgb_network->n_params() + m_pos_encoding->n_params(); // see above initialize_params
 		freeze_params(offset, m_dir_encoding->n_params());
-		freeze_params_fp(offset, m_dir_encoding->n_params());
 	}
 
 	size_t n_params() const override {
