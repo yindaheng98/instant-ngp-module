@@ -96,6 +96,13 @@ int main_func(const std::vector<std::string>& arguments) {
 		{"decay"},
 	};
 
+	ValueFlag<float> encreg_flag{
+		parser,
+		"ENC_REG",
+		"What value do you want to use to regularize encoding. Only valid with --freeze",
+		{"encreg"},
+	};
+
 	PositionalList<string> files{
 		parser,
 		"files",
@@ -153,6 +160,8 @@ int main_func(const std::vector<std::string>& arguments) {
 		tlog::none() << "Freeze the network and only train the encoding.";
 		testbed.m_train_encoding = true;
 		testbed.m_train_network = false;
+		if (encreg_flag)
+			testbed.enable_residual_regulization((network_precision_t)get(encreg_flag));
 	}
 
 	// Render/training loop

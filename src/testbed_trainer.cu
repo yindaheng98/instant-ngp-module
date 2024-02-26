@@ -55,6 +55,12 @@ using namespace std::literals::chrono_literals;
 
 namespace ngp {
 
+void Testbed::enable_residual_regulization(network_precision_t l2_reg) {
+	if (m_testbed_mode == ETestbedMode::Nerf) {
+		m_nerf_network->enable_residual_regulization(m_stream.get(), (network_precision_t)l2_reg);
+	}
+}
+
 void Testbed::set_mode(ETestbedMode mode) {
 	if (mode == m_testbed_mode) {
 		return;
