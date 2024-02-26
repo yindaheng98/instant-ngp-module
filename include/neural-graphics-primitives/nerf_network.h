@@ -264,6 +264,7 @@ public:
 				use_inference_params,
 				param_gradients_mode
 			);
+			residual_regulization(stream);
 		}
 	}
 
@@ -350,6 +351,7 @@ public:
 				use_inference_params,
 				param_gradients_mode
 			);
+			residual_regulization(stream);
 		}
 	}
 
@@ -500,6 +502,23 @@ private:
 		std::unique_ptr<Context> density_network_ctx;
 		std::unique_ptr<Context> rgb_network_ctx;
 	};
+	T* saved_params = nullptr; // yin: for ngp flow
+	T* the_gradients = nullptr; // yin: for ngp flow
+	T residual_l2_reg = 1e-6; // yin: for ngp flow
+public:
+	void enable_residual_regulization(cudaStream_t stream, T l2_reg=1e-6) { // yin: for ngp flow
+		if (saved_params == nullptr)
+			CUDA_CHECK_THROW(cudaMalloc(&saved_params, n_params()*sizeof(T)));
+		CUDA_CHECK_THROW(cudaMemcpyAsync(saved_params, params(), n_params() * sizeof(T), cudaMemcpyDeviceToDevice, stream));
+		residual_l2_reg = l2_reg;
+	}
+	void residual_regulization(cudaStream_t stream) { // yin: for ngp flow
+		if (saved_params == nullptr) return;
+		T* m_pos_encoding_saved_params = saved_params + m_density_network->n_params() + m_rgb_network->n_params(); // see set_params_impl
+		parallel_for_gpu(stream, m_pos_encoding->n_params(), [gradients=m_pos_encoding->gradients(), params=m_pos_encoding->params(), params0=m_pos_encoding_saved_params, l2_reg=residual_l2_reg] __device__ (size_t i) {
+			gradients[i] += (params[i] - params0[i]) * l2_reg;
+		});
+	}
 };
 
 }
