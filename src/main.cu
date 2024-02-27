@@ -157,6 +157,13 @@ int main_func(const std::vector<std::string>& arguments) {
 		{"diff"},
 	};
 
+	ValueFlag<string> savecam_flag{
+		parser,
+		"SAVECAM",
+		"Path to save camera.",
+		{"savecam"},
+	};
+
 	// Parse command line arguments and react to parsing
 	// errors using exceptions.
 	try {
@@ -203,6 +210,12 @@ int main_func(const std::vector<std::string>& arguments) {
 		testbed.load_snapshot(static_cast<fs::path>(get(snapshot_flag)));
 	} else if (network_config_flag) {
 		testbed.reload_network_from_file(get(network_config_flag));
+	}
+
+	std::ofstream cam_out;
+	if (savecam_flag) {
+		std::ofstream f{get(savecam_flag), std::ios::out | std::ios::binary};
+		cam_out = std::move(f);
 	}
 
 	testbed.m_train = false;
@@ -271,6 +284,12 @@ int main_func(const std::vector<std::string>& arguments) {
 			tlog::info() << std::chrono::duration<float>(end - start).count() << "s ok load_frame_dequeue";
 		}
 		testbed.reset_accumulation();
+		for (auto& view : testbed.m_views) {
+			nlohmann::json camera = view.camera0;
+			if (savecam_flag) cam_out << camera.dump();
+			else tlog::info() << camera.dump();
+		}
+		if (savecam_flag) cam_out << endl;
 	}
 	testbed.join_last_update_frame_thread();
 
