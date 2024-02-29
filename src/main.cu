@@ -74,14 +74,14 @@ int main_func(const std::vector<std::string>& arguments) {
 		{"snapshot", "load_snapshot"},
 	};
 
-	ValueFlag<uint32_t> width_flag{
+	ValueFlag<uint64_t> width_flag{
 		parser,
 		"WIDTH",
 		"Resolution width of the GUI.",
 		{"width"},
 	};
 
-	ValueFlag<uint32_t> height_flag{
+	ValueFlag<uint64_t> height_flag{
 		parser,
 		"HEIGHT",
 		"Resolution height of the GUI.",
@@ -108,14 +108,14 @@ int main_func(const std::vector<std::string>& arguments) {
 		{"init"},
 	};
 
-	ValueFlag<uint32_t> start_flag{
+	ValueFlag<int64_t> start_flag{
 		parser,
 		"START",
 		"The start frame number.",
 		{"start"},
 	};
 
-	ValueFlag<uint32_t> end_flag{
+	ValueFlag<int64_t> end_flag{
 		parser,
 		"START",
 		"The end frame number.",
@@ -203,10 +203,10 @@ int main_func(const std::vector<std::string>& arguments) {
 		throw std::runtime_error("This is a player! Please specify --init, --start, --end and --frameformat!");
 	}
 	string init = get(init_flag);
-	uint32_t start = get(start_flag);
-	uint32_t end = get(end_flag);
+	int64_t start = get(start_flag);
+	int64_t end = get(end_flag);
 	string frameformat = get(frameformat_flag);
-	uint32_t current = end;
+	int64_t current = end;
 	auto last_frame_time = std::chrono::steady_clock::now();
 	// Render/training loop
 	while (testbed.frame()) {
