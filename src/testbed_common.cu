@@ -1056,5 +1056,19 @@ json Testbed::dump_camera() {
 	return camera;
 }
 
+json Testbed::dump_views() {
+	std::vector<json> views(m_views.size());
+	for (int i = 0;i < m_views.size();i++) {
+		views[i]["full_resolution"] = m_views[i].full_resolution;
+		views[i]["camera0"] = m_views[i].camera0;
+		views[i]["camera1"] = m_views[i].camera1;
+		views[i]["visualized_dimension"] = m_views[i].visualized_dimension;
+		views[i]["relative_focal_length"] = m_views[i].relative_focal_length;
+		views[i]["screen_center"] = m_views[i].screen_center;
+		// view["foveation"] = m_views[i].foveation; // TODO: m_views[i].foveation is complex
+	}
+	return views;
+}
+
 }
 

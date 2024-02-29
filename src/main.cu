@@ -245,11 +245,8 @@ int main_func(const std::vector<std::string>& arguments) {
 		}
 
 		if (savecam_flag) {
-			std::vector<tcnn::mat4x3> views;
-			for (int i = 0;i < testbed.m_views.size();i++)
-				views.push_back(testbed.m_views[i].camera0);
 			nlohmann::json cameras_json;
-			cameras_json["views"] = views;
+			cameras_json["views"] = testbed.dump_views();
 			cameras_json["camera"] = testbed.dump_camera();
 			cameras_json["frame"] = frame_sequence[current_display];
 			if (savecam_flag) cam_out << cameras_json.dump() << endl;
