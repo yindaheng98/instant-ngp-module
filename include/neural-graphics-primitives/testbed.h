@@ -474,7 +474,7 @@ public:
 	bool diff_frame_dequeue(); // yin: for ngp flow
 	bool diff_frame_nonzero_dequeue(); // yin: for ngp flow
 	void enable_residual_regulization(network_precision_t l2_reg); // yin: for ngp flow
-	int max_read_frame_thread_n = 16; // yin: for ngp flow
+	int64_t max_read_frame_thread_n = 16; // yin: for ngp flow
 private:
 	struct QueueObj { // yin: for ngp flow
 		__half* params;
@@ -488,7 +488,7 @@ private:
 	std::queue<QueueObj> diff_frame_queue; // yin: for ngp flow
 	std::thread last_update_frame_thread; // yin: for ngp flow
 	bool frame_data_enqueue(const fs::path& path, std::queue<QueueObj>& queue); // yin: for ngp flow
-	std::atomic<int> read_frame_thread_counter = {0}; // yin: for ngp flow
+	std::atomic<int64_t> read_frame_thread_counter = {0}; // yin: for ngp flow
 public:
 	void set_params(__half* params_gpu, uint32_t* index_gpu, size_t n); // yin: for ngp flow
 	void set_params(__half* params_gpu, size_t n); // yin: for ngp flow

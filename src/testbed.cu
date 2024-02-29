@@ -3974,7 +3974,7 @@ void Testbed::gather_histograms() {
 bool Testbed::frame_data_enqueue(const fs::path& path, std::queue<QueueObj>& queue) { // yin: for ngp flow
 	if (read_frame_thread_counter >= max_read_frame_thread_n) return false;
 	std::thread current_thread(
-		[&queue](const fs::path path, std::thread last_thread, std::atomic<int>& counter, cudaStream_t stream){
+		[&queue](const fs::path path, std::thread last_thread, std::atomic<int64_t>& counter, cudaStream_t stream){
 			counter++;
 			std::ifstream f{native_string(path), std::ios::in | std::ios::binary};
 			zstr::istream zf{f};
