@@ -284,12 +284,12 @@ int main_func(const std::vector<std::string>& arguments) {
 			tlog::info() << std::chrono::duration<float>(end - start).count() << "s ok load_frame_dequeue";
 		}
 		testbed.reset_accumulation();
-		for (auto& view : testbed.m_views) {
-			nlohmann::json camera = view.camera0;
-			if (savecam_flag) cam_out << camera.dump();
-			else tlog::info() << camera.dump();
-		}
-		if (savecam_flag) cam_out << endl;
+		std::vector<tcnn::mat4x3> cameras;
+		for (int i = 0;i < testbed.m_views.size();i++)
+			cameras.push_back(testbed.m_views[i].camera0);
+		nlohmann::json cameras_json = cameras;
+		if (savecam_flag) cam_out << cameras_json.dump() << endl;
+		else tlog::info() << cameras_json.dump();
 	}
 	testbed.join_last_update_frame_thread();
 
