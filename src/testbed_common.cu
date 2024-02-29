@@ -1040,5 +1040,21 @@ void Testbed::load_camera_path(const fs::path& path) {
 	m_camera_path.load(path, mat4x3::identity());
 }
 
+json Testbed::dump_camera() {
+	json camera;
+	camera["matrix"] = m_camera;
+	camera["fov_axis"] = m_fov_axis;
+	camera["relative_focal_length"] = m_relative_focal_length;
+	camera["screen_center"] = m_screen_center;
+	camera["zoom"] = m_zoom;
+	camera["scale"] = m_scale;
+
+	camera["aperture_size"] = m_aperture_size;
+	camera["autofocus"] = m_autofocus;
+	camera["autofocus_target"] = m_autofocus_target;
+	camera["autofocus_depth"] = m_slice_plane_z;
+	return camera;
+}
+
 }
 

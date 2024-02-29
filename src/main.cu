@@ -207,11 +207,16 @@ int main_func(const std::vector<std::string>& arguments) {
 	int64_t end = get(end_flag);
 	string frameformat = get(frameformat_flag);
 	int64_t current = end;
+	std::vector<int64_t> frame_sequence(testbed.max_read_frame_thread_n * 2);
+	int64_t current_loading = 0;
+	int64_t current_display = 0;
 	auto last_frame_time = std::chrono::steady_clock::now();
 	// Render/training loop
 	while (testbed.frame()) {
 		if (current >= end) {
 			if (testbed.load_frame_enqueue(init)) {
+				frame_sequence[current_loading] = start - 1;
+				current_loading = (current_loading + 1) % frame_sequence.size();
 				last_frame_time = std::chrono::steady_clock::now();
 				tlog::info() << "ok diff_frame_enqueue init" << ' ' << init;
 				current = start;
@@ -220,6 +225,8 @@ int main_func(const std::vector<std::string>& arguments) {
 			std::string path = string_sprintf(frameformat.c_str(), current);
 			if (diff_flag) {
 				if (testbed.diff_frame_enqueue(path)) {
+					frame_sequence[current_loading] = current;
+					current_loading = (current_loading + 1) % frame_sequence.size();
 					auto now = std::chrono::steady_clock::now();
 					auto time_period = std::chrono::duration<float>(now - last_frame_time).count();
 					current++;
@@ -227,6 +234,8 @@ int main_func(const std::vector<std::string>& arguments) {
 				}
 			} else {
 				if (testbed.load_frame_enqueue(path)) {
+					frame_sequence[current_loading] = current;
+					current_loading = (current_loading + 1) % frame_sequence.size();
 					auto now = std::chrono::steady_clock::now();
 					auto time_period = std::chrono::duration<float>(now - last_frame_time).count();
 					current++;
@@ -234,22 +243,31 @@ int main_func(const std::vector<std::string>& arguments) {
 				}
 			}
 		}
+
+		if (savecam_flag) {
+			std::vector<tcnn::mat4x3> views;
+			for (int i = 0;i < testbed.m_views.size();i++)
+				views.push_back(testbed.m_views[i].camera0);
+			nlohmann::json cameras_json;
+			cameras_json["views"] = views;
+			cameras_json["camera"] = testbed.dump_camera();
+			cameras_json["frame"] = frame_sequence[current_display];
+			if (savecam_flag) cam_out << cameras_json.dump() << endl;
+			else tlog::info() << cameras_json.dump();
+		}
+
 		auto start = std::chrono::steady_clock::now();
 		if (testbed.diff_frame_dequeue()) {
+			current_display = (current_display + 1) % frame_sequence.size();
 			auto end = std::chrono::steady_clock::now();
 			tlog::info() << std::chrono::duration<float>(end - start).count() << "s ok diff_frame_dequeue";
 		}
 		if (testbed.load_frame_dequeue()) {
+			current_display = (current_display + 1) % frame_sequence.size();
 			auto end = std::chrono::steady_clock::now();
 			tlog::info() << std::chrono::duration<float>(end - start).count() << "s ok load_frame_dequeue";
 		}
 		testbed.reset_accumulation();
-		std::vector<tcnn::mat4x3> cameras;
-		for (int i = 0;i < testbed.m_views.size();i++)
-			cameras.push_back(testbed.m_views[i].camera0);
-		nlohmann::json cameras_json = cameras;
-		if (savecam_flag) cam_out << cameras_json.dump() << endl;
-		else tlog::info() << cameras_json.dump();
 	}
 	testbed.join_last_update_frame_thread();
 
