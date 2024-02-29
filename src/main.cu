@@ -53,13 +53,6 @@ int main_func(const std::vector<std::string>& arguments) {
 		{'h', "help"},
 	};
 
-	ValueFlag<string> mode_flag{
-		parser,
-		"MODE",
-		"Deprecated. Do not use.",
-		{'m', "mode"},
-	};
-
 	ValueFlag<string> network_config_flag{
 		parser,
 		"CONFIG",
@@ -67,25 +60,11 @@ int main_func(const std::vector<std::string>& arguments) {
 		{'n', 'c', "network", "config"},
 	};
 
-	Flag no_gui_flag{
-		parser,
-		"NO_GUI",
-		"Disables the GUI and instead reports training progress on the command line.",
-		{"no-gui"},
-	};
-
 	Flag vr_flag{
 		parser,
 		"VR",
 		"Enables VR",
 		{"vr"}
-	};
-
-	ValueFlag<string> scene_flag{
-		parser,
-		"SCENE",
-		"The scene to load. Can be NeRF dataset, a *.obj/*.stl mesh for training a SDF, an image, or a *.nvdb volume.",
-		{'s', "scene"},
 	};
 
 	ValueFlag<string> snapshot_flag{
@@ -192,18 +171,10 @@ int main_func(const std::vector<std::string>& arguments) {
 		return 0;
 	}
 
-	if (mode_flag) {
-		tlog::warning() << "The '--mode' argument is no longer in use. It has no effect. The mode is automatically chosen based on the scene.";
-	}
-
 	Testbed testbed;
 
 	for (auto file : get(files)) {
 		testbed.load_file(file);
-	}
-
-	if (scene_flag) {
-		testbed.load_training_data(get(scene_flag));
 	}
 
 	if (snapshot_flag) {
@@ -220,15 +191,7 @@ int main_func(const std::vector<std::string>& arguments) {
 
 	testbed.m_train = false;
 
-#ifdef NGP_GUI
-	bool gui = !no_gui_flag;
-#else
-	bool gui = false;
-#endif
-
-	if (gui) {
-		testbed.init_window(width_flag ? get(width_flag) : 1920, height_flag ? get(height_flag) : 1080);
-	}
+	testbed.init_window(width_flag ? get(width_flag) : 1920, height_flag ? get(height_flag) : 1080);
 
 	if (vr_flag) {
 		testbed.init_vr();
@@ -247,9 +210,6 @@ int main_func(const std::vector<std::string>& arguments) {
 	auto last_frame_time = std::chrono::steady_clock::now();
 	// Render/training loop
 	while (testbed.frame()) {
-		if (!gui) {
-			tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val();
-		}
 		if (current >= end) {
 			if (testbed.load_frame_enqueue(init)) {
 				last_frame_time = std::chrono::steady_clock::now();
