@@ -1070,5 +1070,23 @@ json Testbed::dump_views() {
 	return views;
 }
 
+void Testbed::load_camera(json camera) {
+	m_camera = camera.value("matrix", m_camera);
+	m_fov_axis = camera.value("fov_axis", m_fov_axis);
+	if (camera.contains("relative_focal_length")) from_json(camera["relative_focal_length"], m_relative_focal_length);
+	if (camera.contains("screen_center")) from_json(camera["screen_center"], m_screen_center);
+	m_zoom = camera.value("zoom", m_zoom);
+	m_scale = camera.value("scale", m_scale);
+
+	m_aperture_size = camera.value("aperture_size", m_aperture_size);
+	if (m_aperture_size != 0) {
+		m_dlss = false;
+	}
+
+	m_autofocus = camera.value("autofocus", m_autofocus);
+	if (camera.contains("autofocus_target")) from_json(camera["autofocus_target"], m_autofocus_target);
+	m_slice_plane_z = camera.value("autofocus_depth", m_slice_plane_z);
+}
+
 }
 

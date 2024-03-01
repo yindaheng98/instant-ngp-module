@@ -202,8 +202,6 @@ int main_func(const std::vector<std::string>& arguments) {
 	auto last_frame_time = std::chrono::steady_clock::now();
 	// Render/training loop
 	while (testbed.frame()) {
-		if (!std::getline(cam_infile, cam_instr)) break;
-		tlog::info() << cam_instr;
 		if (current >= end) {
 			if (testbed.load_frame_enqueue(init)) {
 				frame_sequence[current_loading] = start - 1;
@@ -247,6 +245,10 @@ int main_func(const std::vector<std::string>& arguments) {
 			tlog::info() << std::chrono::duration<float>(end - start).count() << "s ok load_frame_dequeue";
 		}
 		testbed.reset_accumulation();
+
+		if (!std::getline(cam_infile, cam_instr)) break;
+		nlohmann::json cam_json = nlohmann::json::parse(cam_instr);
+		testbed.load_camera(cam_json["camera"]);
 	}
 	testbed.join_last_update_frame_thread();
 

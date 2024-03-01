@@ -476,6 +476,7 @@ public:
 	void enable_residual_regulization(network_precision_t l2_reg); // yin: for ngp flow
 	json dump_camera(); // yin: for ngp flow
 	json dump_views(); // yin: for ngp flow
+	void load_camera(json camera); // yin: for ngp flow
 	int64_t max_read_frame_thread_n = 16; // yin: for ngp flow
 private:
 	struct QueueObj { // yin: for ngp flow
