@@ -199,6 +199,7 @@ int main_func(const std::vector<std::string>& arguments) {
 	std::vector<int64_t> frame_sequence(testbed.max_read_frame_thread_n * 2);
 	int64_t current_loading = 0;
 	int64_t current_display = 0;
+	int64_t next_frame = 0;
 	auto last_frame_time = std::chrono::steady_clock::now();
 	// Render/training loop
 	while (testbed.frame()) {
@@ -233,6 +234,18 @@ int main_func(const std::vector<std::string>& arguments) {
 			}
 		}
 
+		if (current_loading >= current_display + 1 && next_frame == frame_sequence[current_display + 1]) { /* if so, should not load more camera */ }
+		else {
+			if (!std::getline(cam_infile, cam_instr)) break;
+			nlohmann::json next_cam_json = nlohmann::json::parse(cam_instr);
+			testbed.load_camera(next_cam_json["camera"]);
+			next_frame = next_cam_json.value("frame", next_frame);
+			if (next_frame == frame_sequence[current_display]) { // if so, should not load more frame
+				testbed.reset_accumulation();
+				continue;
+			}
+		}
+
 		auto start = std::chrono::steady_clock::now();
 		if (testbed.diff_frame_dequeue()) {
 			current_display = (current_display + 1) % frame_sequence.size();
@@ -245,10 +258,6 @@ int main_func(const std::vector<std::string>& arguments) {
 			tlog::info() << std::chrono::duration<float>(end - start).count() << "s ok load_frame_dequeue";
 		}
 		testbed.reset_accumulation();
-
-		if (!std::getline(cam_infile, cam_instr)) break;
-		nlohmann::json cam_json = nlohmann::json::parse(cam_instr);
-		testbed.load_camera(cam_json["camera"]);
 	}
 	testbed.join_last_update_frame_thread();
 
