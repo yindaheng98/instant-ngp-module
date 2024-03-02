@@ -102,6 +102,8 @@ public:
 
 	virtual ~NerfNetwork() { }
 
+	GPUMatrixDynamic<uint32_t>* last_encoding_index;
+
 	void inference_mixed_precision_impl(cudaStream_t stream, const GPUMatrixDynamic<float>& input, GPUMatrixDynamic<T>& output, bool use_inference_params = true) override {
 		uint32_t batch_size = input.n();
 		GPUMatrixDynamic<T> density_network_input{m_pos_encoding->padded_output_width(), batch_size, stream, m_pos_encoding->preferred_output_layout()};
@@ -110,12 +112,14 @@ public:
 		GPUMatrixDynamic<T> density_network_output = rgb_network_input.slice_rows(0, m_density_network->padded_output_width());
 		GPUMatrixDynamic<T> rgb_network_output{output.data(), m_rgb_network->padded_output_width(), batch_size, output.layout()};
 
-		m_pos_encoding->inference_mixed_precision(
+		void* fxxk_ptr = m_pos_encoding->forward_return_fxxk_ptr(
 			stream,
 			input.slice_rows(0, m_pos_encoding->input_width()),
-			density_network_input,
-			use_inference_params
+			&density_network_input,
+			use_inference_params,
+			false
 		);
+		last_encoding_index = static_cast<GPUMatrixDynamic<uint32_t>*>(fxxk_ptr);
 
 		m_density_network->inference_mixed_precision(stream, density_network_input, density_network_output, use_inference_params);
 
