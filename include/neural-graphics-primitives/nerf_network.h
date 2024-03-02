@@ -102,7 +102,8 @@ public:
 
 	virtual ~NerfNetwork() { }
 
-	GPUMatrixDynamic<uint32_t>* last_encoding_index;
+	std::vector<GPUMatrixDynamic<bool>*> last_grid_hit_vector;
+	std::vector<GPUMatrixDynamic<uint32_t>*> last_grid_hit_index_vector;
 
 	void inference_mixed_precision_impl(cudaStream_t stream, const GPUMatrixDynamic<float>& input, GPUMatrixDynamic<T>& output, bool use_inference_params = true) override {
 		uint32_t batch_size = input.n();
@@ -112,14 +113,19 @@ public:
 		GPUMatrixDynamic<T> density_network_output = rgb_network_input.slice_rows(0, m_density_network->padded_output_width());
 		GPUMatrixDynamic<T> rgb_network_output{output.data(), m_rgb_network->padded_output_width(), batch_size, output.layout()};
 
-		void* fxxk_ptr = m_pos_encoding->forward_return_fxxk_ptr(
+		std::vector<void*> fxxk_ptr = m_pos_encoding->forward_return_fxxk_ptr(
 			stream,
 			input.slice_rows(0, m_pos_encoding->input_width()),
 			&density_network_input,
 			use_inference_params,
 			false
 		);
-		last_encoding_index = static_cast<GPUMatrixDynamic<uint32_t>*>(fxxk_ptr);
+		GPUMatrixDynamic<bool>* grid_hit = static_cast<GPUMatrixDynamic<bool>*>(fxxk_ptr[0]);
+		tlog::info() << grid_hit->data() << ' ' << grid_hit->m() << ' ' << grid_hit->n();
+		last_grid_hit_vector.push_back(grid_hit);
+		GPUMatrixDynamic<uint32_t>* grid_hit_index = static_cast<GPUMatrixDynamic<uint32_t>*>(fxxk_ptr[1]);
+		tlog::info() << grid_hit_index->data() << ' ' << grid_hit_index->m() << ' ' << grid_hit_index->n();
+		last_grid_hit_index_vector.push_back(grid_hit_index);
 
 		m_density_network->inference_mixed_precision(stream, density_network_input, density_network_output, use_inference_params);
 
