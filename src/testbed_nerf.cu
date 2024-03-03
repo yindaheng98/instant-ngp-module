@@ -231,6 +231,24 @@ __global__ void splat_grid_samples_nerf_max_nearest_neighbor(const uint32_t n_el
 	atomicMax((uint32_t*)&grid_out[local_idx], __float_as_uint(optical_thickness));
 }
 
+__global__ void splat_grid_samples_nerf_min_nearest_neighbor(const uint32_t n_elements, const uint32_t* __restrict__ indices, const network_precision_t* network_output, float* __restrict__ grid_out, ENerfActivation rgb_activation, ENerfActivation density_activation) {
+	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
+	if (i >= n_elements) return;
+
+	uint32_t local_idx = indices[i];
+
+	// Current setting: optical thickness of the smallest possible stepsize.
+	// Uncomment for:   optical thickness of the ~expected step size when the observer is in the middle of the scene
+	uint32_t level = 0;//local_idx / NERF_GRID_N_CELLS();
+
+	float mlp = network_to_density(float(network_output[i]), density_activation);
+	float optical_thickness = mlp * scalbnf(MIN_CONE_STEPSIZE(), level);
+
+	// Positive floats are monotonically ordered when their bit pattern is interpretes as uint.
+	// uint atomicMax is thus perfectly acceptable.
+	atomicMin((uint32_t*)&grid_out[local_idx], __float_as_uint(optical_thickness));
+}
+
 __global__ void grid_samples_half_to_float(const uint32_t n_elements, BoundingBox aabb, float* dst, const network_precision_t* network_output, ENerfActivation density_activation, const NerfPosition* __restrict__ coords_in, const float* __restrict__ grid_in, uint32_t max_cascade) {
 	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
 	if (i >= n_elements) return;
@@ -2281,7 +2299,7 @@ void Testbed::load_nerf(const fs::path& data_path) {
 	load_nerf_post();
 }
 
-void Testbed::update_density_grid_nerf(float decay, uint32_t n_uniform_density_grid_samples, uint32_t n_nonuniform_density_grid_samples, cudaStream_t stream) {
+void Testbed::update_density_grid_nerf(float decay, uint32_t n_uniform_density_grid_samples, uint32_t n_nonuniform_density_grid_samples, cudaStream_t stream, bool smallest) {
 	const uint32_t n_elements = NERF_GRID_N_CELLS() * (m_nerf.max_cascade + 1);
 
 	m_nerf.density_grid.resize(n_elements);
@@ -2363,6 +2381,8 @@ void Testbed::update_density_grid_nerf(float decay, uint32_t n_uniform_density_g
 			m_nerf_network->density(stream, density_grid_position_matrix, density_matrix, false);
 		}
 
+		if (smallest) linear_kernel(splat_grid_samples_nerf_min_nearest_neighbor, 0, stream, n_density_grid_samples, density_grid_indices, mlp_out, density_grid_tmp, m_nerf.rgb_activation, m_nerf.density_activation);
+		else
 		linear_kernel(splat_grid_samples_nerf_max_nearest_neighbor, 0, stream, n_density_grid_samples, density_grid_indices, mlp_out, density_grid_tmp, m_nerf.rgb_activation, m_nerf.density_activation);
 		linear_kernel(ema_grid_samples_nerf, 0, stream, n_elements, decay, m_nerf.density_grid_ema_step, m_nerf.density_grid.data(), density_grid_tmp);
 
