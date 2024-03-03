@@ -102,8 +102,11 @@ public:
 
 	virtual ~NerfNetwork() { }
 
-	std::vector<GPUMatrixDynamic<bool>*> last_grid_hit_vector;
-	std::vector<GPUMatrixDynamic<uint32_t>*> last_grid_hit_index_vector;
+	GPUMemory<bool> last_grid_hit;
+	bool record_grid_hit = false;
+	bool record_grid_hit_only = false;
+	GPUMatrixDynamic<uint32_t> last_grid_hit_index;
+	bool record_grid_hit_index = false;
 
 	void inference_mixed_precision_impl(cudaStream_t stream, const GPUMatrixDynamic<float>& input, GPUMatrixDynamic<T>& output, bool use_inference_params = true) override {
 		uint32_t batch_size = input.n();
@@ -120,12 +123,22 @@ public:
 			use_inference_params,
 			false
 		);
-		GPUMatrixDynamic<bool>* grid_hit = static_cast<GPUMatrixDynamic<bool>*>(fxxk_ptr[0]);
-		tlog::info() << grid_hit->data() << ' ' << grid_hit->m() << ' ' << grid_hit->n();
-		last_grid_hit_vector.push_back(grid_hit);
-		GPUMatrixDynamic<uint32_t>* grid_hit_index = static_cast<GPUMatrixDynamic<uint32_t>*>(fxxk_ptr[1]);
-		tlog::info() << grid_hit_index->data() << ' ' << grid_hit_index->m() << ' ' << grid_hit_index->n();
-		last_grid_hit_index_vector.push_back(grid_hit_index);
+
+		if (record_grid_hit || record_grid_hit_only) {
+			GPUMatrixDynamic<bool>* grid_hit = static_cast<GPUMatrixDynamic<bool>*>(fxxk_ptr[0]);
+			tlog::info() << grid_hit->data() << ' ' << grid_hit->m() << ' ' << grid_hit->n();
+			if (last_grid_hit.size() != m_pos_encoding->n_params()) last_grid_hit.resize(m_pos_encoding->n_params());
+			parallel_for_gpu(stream, m_pos_encoding->n_params(), [last_grid_hit=last_grid_hit.data(), grid_hit=grid_hit->data()] __device__ (size_t i) {
+				last_grid_hit[i] = grid_hit[i] ? true : last_grid_hit[i];
+			});
+			if (record_grid_hit_only) return;
+		}
+
+		if (record_grid_hit_index) {
+			GPUMatrixDynamic<uint32_t>* grid_hit_index = static_cast<GPUMatrixDynamic<uint32_t>*>(fxxk_ptr[1]);
+			tlog::info() << grid_hit_index->data() << ' ' << grid_hit_index->m() << ' ' << grid_hit_index->n();
+			// You can do sth here, with last_grid_hit_index
+		}
 
 		m_density_network->inference_mixed_precision(stream, density_network_input, density_network_output, use_inference_params);
 
