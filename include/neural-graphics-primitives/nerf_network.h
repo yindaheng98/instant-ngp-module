@@ -105,6 +105,9 @@ public:
 	GPUMemory<bool> last_grid_hit;
 	bool record_grid_hit = false;
 	bool record_grid_hit_only = false;
+	void reset_last_grid_hit() {
+		last_grid_hit.memset(0);
+	}
 	GPUMatrixDynamic<uint32_t> last_grid_hit_index;
 	bool record_grid_hit_index = false;
 
