@@ -490,11 +490,11 @@ __global__ void composite_kernel_density_grid(
 	const uint32_t stride,
 	const uint32_t current_step,
 	BoundingBox aabb,
-	vec4* __restrict__ rgba,
+	float* __restrict__ grid_a,
 	NerfPayload* payloads,
 	PitchedPtr<NerfCoordinate> network_input,
 	uint32_t n_steps,
-	const float* __restrict__ grid_in,
+	const float* __restrict__ density_grid,
 	ENerfActivation density_activation,
 	int show_accel,
 	float min_transmittance
@@ -508,7 +508,7 @@ __global__ void composite_kernel_density_grid(
 		return;
 	}
 
-	vec4 local_rgba = rgba[i];
+	float local_grid_a = grid_a[i];
 	// Composite in the last n steps
 	uint32_t actual_n_steps = payload.n_steps;
 	uint32_t j = 0;
@@ -518,21 +518,18 @@ __global__ void composite_kernel_density_grid(
 		vec3 warped_pos = input->pos.p;
 		vec3 pos = unwarp_position(warped_pos, aabb);
 
-		float T = 1.f - local_rgba.a;
+		float G = 1.f - local_grid_a;
 		float dt = unwarp_dt(input->dt);
-		float alpha = 1.f - __expf(-network_to_density(grid_in[morton3D(pos.x, pos.y, pos.z)], density_activation) * dt);
+		float glpha = 1.f - __expf(-network_to_density(float(density_grid[morton3D(pos.x, pos.y, pos.z)]), density_activation) * dt);
 		if (show_accel >= 0) {
-			alpha = 1.f;
+			glpha = 1.f;
 		}
-		float weight = alpha * T;
+		float geight = glpha * G;
 
-		local_rgba.a += weight;
-		if (weight > payload.max_weight) {
-			payload.max_weight = weight;
-		}
+		local_grid_a += geight;
 
-		if (local_rgba.a > (1.0f - min_transmittance)) {
-			local_rgba /= local_rgba.a;
+		if (local_grid_a > (1.0f - min_transmittance)) {
+			local_grid_a /= local_grid_a;
 			break;
 		}
 	}
@@ -541,8 +538,6 @@ __global__ void composite_kernel_density_grid(
 		payload.alive = false;
 		payload.n_steps = j + current_step;
 	}
-
-	rgba[i].a = local_rgba.a;
 }
 
 __global__ void composite_kernel_nerf(
@@ -1817,7 +1812,7 @@ uint32_t Testbed::NerfTracer::trace(
 				n_elements,
 				i,
 				train_aabb,
-				rays_current.rgba,
+				rays_current.grid_a,
 				rays_current.payload,
 				input_data,
 				n_steps_between_compaction,
