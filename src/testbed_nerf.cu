@@ -1650,7 +1650,10 @@ uint32_t Testbed::NerfTracer::trace(
 	float glow_y_cutoff,
 	int glow_mode,
 	const float* extra_dims_gpu,
-	cudaStream_t stream
+	cudaStream_t stream,
+	GPUMemory<bool>*& grid_hit,
+	bool get_grid_hit,
+	bool get_grid_hit_only
 ) {
 	if (m_n_rays_initialized == 0) {
 		return 0;
@@ -1661,6 +1664,9 @@ uint32_t Testbed::NerfTracer::trace(
 	uint32_t n_alive = m_n_rays_initialized;
 	// m_n_rays_initialized = 0;
 
+	network->record_grid_hit = get_grid_hit;
+	network->record_grid_hit_only = get_grid_hit_only;
+	network->reset_last_grid_hit();
 	uint32_t i = 1;
 	uint32_t double_buffer_index = 0;
 	while (i < MARCH_ITER) {
@@ -1712,6 +1718,10 @@ uint32_t Testbed::NerfTracer::trace(
 		GPUMatrix<float> positions_matrix((float*)m_network_input, (sizeof(NerfCoordinate) + extra_stride) / sizeof(float), n_elements);
 		GPUMatrix<network_precision_t, RM> rgbsigma_matrix((network_precision_t*)m_network_output, network->padded_output_width(), n_elements);
 		network->inference_mixed_precision(stream, positions_matrix, rgbsigma_matrix);
+		if (get_grid_hit_only) {
+			i += n_steps_between_compaction;
+			continue;
+		}
 
 		if (render_mode == ERenderMode::Normals) {
 			network->input_gradient(stream, 3, positions_matrix, positions_matrix);
@@ -1746,6 +1756,7 @@ uint32_t Testbed::NerfTracer::trace(
 
 		i += n_steps_between_compaction;
 	}
+	grid_hit = network->get_last_grid_hit();
 
 	uint32_t n_hit;
 	CUDA_CHECK_THROW(cudaMemcpyAsync(&n_hit, m_hit_counter, sizeof(uint32_t), cudaMemcpyDeviceToHost, stream));
@@ -1892,6 +1903,7 @@ void Testbed::render_nerf(
 	if (render_2d) {
 		n_hit = tracer.n_rays_initialized();
 	} else {
+		GPUMemory<bool>* grid_hit;
 		n_hit = tracer.trace(
 			nerf_network,
 			m_render_aabb,
@@ -1913,8 +1925,13 @@ void Testbed::render_nerf(
 			m_nerf.glow_y_cutoff,
 			m_nerf.glow_mode,
 			extra_dims_gpu,
-			stream
+			stream,
+			grid_hit,
+			get_grid_hit,
+			get_grid_hit_only
 		);
+		if (get_grid_hit || get_grid_hit_only) do_grid_hit(grid_hit);
+		if (get_grid_hit_only) return;
 	}
 	RaysNerfSoa& rays_hit = render_2d ? tracer.rays_init() : tracer.rays_hit();
 

@@ -105,6 +105,9 @@ public:
 	GPUMemory<bool> last_grid_hit;
 	bool record_grid_hit = false;
 	bool record_grid_hit_only = false;
+	GPUMemory<bool>* get_last_grid_hit() {
+		return &last_grid_hit;
+	}
 	void reset_last_grid_hit() {
 		last_grid_hit.memset(0);
 	}
@@ -129,7 +132,7 @@ public:
 
 		if (record_grid_hit || record_grid_hit_only) {
 			GPUMatrixDynamic<bool>* grid_hit = static_cast<GPUMatrixDynamic<bool>*>(fxxk_ptr[0]);
-			tlog::info() << grid_hit->data() << ' ' << grid_hit->m() << ' ' << grid_hit->n();
+			// tlog::info() << grid_hit->data() << ' ' << grid_hit->m() << ' ' << grid_hit->n();
 			if (last_grid_hit.size() != m_pos_encoding->n_params()) last_grid_hit.resize(m_pos_encoding->n_params());
 			parallel_for_gpu(stream, m_pos_encoding->n_params(), [last_grid_hit=last_grid_hit.data(), grid_hit=grid_hit->data()] __device__ (size_t i) {
 				last_grid_hit[i] = grid_hit[i] ? true : last_grid_hit[i];

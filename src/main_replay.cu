@@ -136,6 +136,13 @@ int main_func(const std::vector<std::string>& arguments) {
 		{"savecam"},
 	};
 
+	ValueFlag<string> savehit_flag{
+		parser,
+		"SAVEHIT",
+		"Path to save grid hit record.",
+		{"savehit"},
+	};
+
 	// Parse command line arguments and react to parsing
 	// errors using exceptions.
 	try {
@@ -181,6 +188,11 @@ int main_func(const std::vector<std::string>& arguments) {
 	}
 	std::ifstream cam_infile(get(savecam_flag));
 	std::string cam_instr;
+
+	if (savehit_flag) {
+		testbed.get_grid_hit = true;
+		testbed.get_grid_hit_only = false; // TODO: true = slow?
+	}
 
 	testbed.m_train = false;
 
