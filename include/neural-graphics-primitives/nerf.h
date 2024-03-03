@@ -24,19 +24,22 @@ struct RaysNerfSoa {
 	void copy_from_other_async(const RaysNerfSoa& other, cudaStream_t stream) {
 		CUDA_CHECK_THROW(cudaMemcpyAsync(rgba, other.rgba, size * sizeof(vec4), cudaMemcpyDeviceToDevice, stream));
 		CUDA_CHECK_THROW(cudaMemcpyAsync(depth, other.depth, size * sizeof(float), cudaMemcpyDeviceToDevice, stream));
+		CUDA_CHECK_THROW(cudaMemcpyAsync(grid_a, other.grid_a, size * sizeof(float), cudaMemcpyDeviceToDevice, stream));
 		CUDA_CHECK_THROW(cudaMemcpyAsync(payload, other.payload, size * sizeof(NerfPayload), cudaMemcpyDeviceToDevice, stream));
 	}
 #endif
 
-	void set(vec4* rgba, float* depth, NerfPayload* payload, size_t size) {
+	void set(vec4* rgba, float* depth, float* grid_a, NerfPayload* payload, size_t size) {
 		this->rgba = rgba;
 		this->depth = depth;
+		this->grid_a = grid_a;
 		this->payload = payload;
 		this->size = size;
 	}
 
 	vec4* rgba;
 	float* depth;
+	float* grid_a;
 	NerfPayload* payload;
 	size_t size;
 };

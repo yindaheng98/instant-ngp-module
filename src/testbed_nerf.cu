@@ -557,6 +557,7 @@ __global__ void composite_kernel_nerf(
 	float depth_scale,
 	vec4* __restrict__ rgba,
 	float* __restrict__ depth,
+	float* __restrict__ grid_a,
 	NerfPayload* payloads,
 	PitchedPtr<NerfCoordinate> network_input,
 	const network_precision_t* __restrict__ network_output,
@@ -579,6 +580,7 @@ __global__ void composite_kernel_nerf(
 	}
 
 	vec4 local_rgba = rgba[i];
+	float local_grid_a = grid_a[i];
 	float local_depth = depth[i];
 	vec3 origin = payload.origin;
 	vec3 cam_fwd = camera_matrix[2];
@@ -597,12 +599,16 @@ __global__ void composite_kernel_nerf(
 		vec3 pos = unwarp_position(warped_pos, aabb);
 
 		float T = 1.f - local_rgba.a;
+		float G = 1.f - local_grid_a;
 		float dt = unwarp_dt(input->dt);
 		float alpha = 1.f - __expf(-network_to_density(float(local_network_output[3]), density_activation) * dt);
+		float glpha = 1.f - __expf(-network_to_density(float(density_grid[morton3D(pos.x, pos.y, pos.z)]), density_activation) * dt);
 		if (show_accel >= 0) {
 			alpha = 1.f;
+			glpha = 1.f;
 		}
 		float weight = alpha * T;
+		float geight = glpha * G;
 
 		vec3 rgb = network_to_rgb_vec(local_network_output, rgb_activation);
 
@@ -733,6 +739,7 @@ __global__ void composite_kernel_nerf(
 		}
 
 		local_rgba += vec4(rgb * weight, weight);
+		local_grid_a += geight;
 		if (weight > payload.max_weight) {
 			payload.max_weight = weight;
 			local_depth = dot(cam_fwd, pos - camera_matrix[3]);
@@ -742,6 +749,11 @@ __global__ void composite_kernel_nerf(
 			local_rgba /= local_rgba.a;
 			break;
 		}
+
+		// if (local_grid_a > (1.0f - min_transmittance)) {
+		// 	local_grid_a /= local_grid_a;
+		// 	break;
+		// }
 	}
 
 	if (j < n_steps) {
@@ -1691,6 +1703,7 @@ void Testbed::NerfTracer::init_rays_from_camera(
 
 	CUDA_CHECK_THROW(cudaMemsetAsync(m_rays[0].rgba, 0, m_n_rays_initialized * sizeof(vec4), stream));
 	CUDA_CHECK_THROW(cudaMemsetAsync(m_rays[0].depth, 0, m_n_rays_initialized * sizeof(float), stream));
+	CUDA_CHECK_THROW(cudaMemsetAsync(m_rays[0].grid_a, 0, m_n_rays_initialized * sizeof(float), stream));
 
 	linear_kernel(advance_pos_nerf_kernel, 0, stream,
 		m_n_rays_initialized,
@@ -1835,6 +1848,7 @@ uint32_t Testbed::NerfTracer::trace(
 			depth_scale,
 			rays_current.rgba,
 			rays_current.depth,
+			rays_current.grid_a,
 			rays_current.payload,
 			input_data,
 			m_network_output,
@@ -1870,6 +1884,9 @@ void Testbed::NerfTracer::enlarge(size_t n_elements, uint32_t padded_output_widt
 		float,
 		uint32_t,
 		uint32_t
+		, float // m_rays[0].grid_a
+		, float // m_rays[1].grid_a
+		, float // m_rays_hit.grid_a
 	>(
 		stream, &m_scratch_alloc,
 		n_elements, n_elements, n_elements,
@@ -1879,11 +1896,12 @@ void Testbed::NerfTracer::enlarge(size_t n_elements, uint32_t padded_output_widt
 		n_elements * MAX_STEPS_INBETWEEN_COMPACTION * num_floats,
 		32, // 2 full cache lines to ensure no overlap
 		32  // 2 full cache lines to ensure no overlap
+		, n_elements, n_elements, n_elements
 	);
 
-	m_rays[0].set(std::get<0>(scratch), std::get<1>(scratch), std::get<2>(scratch), n_elements);
-	m_rays[1].set(std::get<3>(scratch), std::get<4>(scratch), std::get<5>(scratch), n_elements);
-	m_rays_hit.set(std::get<6>(scratch), std::get<7>(scratch), std::get<8>(scratch), n_elements);
+	m_rays[0].set(std::get<0>(scratch), std::get<1>(scratch), std::get<13>(scratch), std::get<2>(scratch), n_elements);
+	m_rays[1].set(std::get<3>(scratch), std::get<4>(scratch), std::get<14>(scratch), std::get<5>(scratch), n_elements);
+	m_rays_hit.set(std::get<6>(scratch), std::get<7>(scratch), std::get<15>(scratch), std::get<8>(scratch), n_elements);
 
 	m_network_output = std::get<9>(scratch);
 	m_network_input = std::get<10>(scratch);
