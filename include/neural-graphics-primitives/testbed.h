@@ -203,7 +203,8 @@ public:
 			cudaStream_t stream,
 			GPUMemory<bool>*& grid_hit, // yin: for ngp flow
 			bool get_grid_hit, // yin: for ngp flow
-			bool get_grid_hit_only // yin: for ngp flow
+			bool get_grid_hit_only, // yin: for ngp flow
+			GPUMemory<float>* density_grid // yin: for ngp flow
 		);
 
 		void enlarge(size_t n_elements, uint32_t padded_output_width, uint32_t n_extra_dims, cudaStream_t stream);

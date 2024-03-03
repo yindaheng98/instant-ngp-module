@@ -1653,7 +1653,8 @@ uint32_t Testbed::NerfTracer::trace(
 	cudaStream_t stream,
 	GPUMemory<bool>*& grid_hit,
 	bool get_grid_hit,
-	bool get_grid_hit_only
+	bool get_grid_hit_only,
+	GPUMemory<float>* density_grid
 ) {
 	if (m_n_rays_initialized == 0) {
 		return 0;
@@ -1719,6 +1720,7 @@ uint32_t Testbed::NerfTracer::trace(
 		GPUMatrix<network_precision_t, RM> rgbsigma_matrix((network_precision_t*)m_network_output, network->padded_output_width(), n_elements);
 		network->inference_mixed_precision(stream, positions_matrix, rgbsigma_matrix);
 		if (get_grid_hit_only) {
+			// TODO: achieve ray marching by float* __restrict__ density_grid !!!
 			i += n_steps_between_compaction;
 			continue;
 		}
@@ -1928,7 +1930,8 @@ void Testbed::render_nerf(
 			stream,
 			grid_hit,
 			get_grid_hit,
-			get_grid_hit_only
+			get_grid_hit_only,
+			&m_nerf.density_grid
 		);
 		if (get_grid_hit || get_grid_hit_only) do_grid_hit(grid_hit);
 		if (get_grid_hit_only) return;
