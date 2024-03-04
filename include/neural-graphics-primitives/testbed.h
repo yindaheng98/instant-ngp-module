@@ -201,7 +201,7 @@ public:
 			int glow_mode,
 			const float* extra_dims_gpu,
 			cudaStream_t stream,
-			GPUMemory<bool>*& grid_hit, // yin: for ngp flow
+			GPUMemory<uint32_t>*& grid_hit, // yin: for ngp flow
 			bool get_grid_hit, // yin: for ngp flow
 			bool get_grid_hit_only, // yin: for ngp flow
 			GPUMemory<float>* density_grid, // yin: for ngp flow
@@ -485,7 +485,7 @@ public:
 	int64_t max_read_frame_thread_n = 16; // yin: for ngp flow
 	bool get_grid_hit = false; // yin: for ngp flow
 	bool get_grid_hit_only = false; // yin: for ngp flow
-	void do_grid_hit(GPUMemory<bool>* grid_hit); // yin: for ngp flow
+	void do_grid_hit(GPUMemory<uint32_t>* grid_hit); // yin: for ngp flow
 private:
 	GPUMemory<bool>* grid_hit; // yin: for ngp flow
 	struct QueueObj { // yin: for ngp flow

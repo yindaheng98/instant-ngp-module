@@ -71,11 +71,11 @@ using namespace std::literals::chrono_literals;
 
 namespace ngp {
 
-void Testbed::do_grid_hit(GPUMemory<bool>* grid_hit) {
+void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     uint64_t* counter_gpu;
     CUDA_CHECK_THROW(cudaMalloc(&counter_gpu, sizeof(uint64_t)));
     parallel_for_gpu(m_stream.get(), grid_hit->size(), [grid_hit=grid_hit->data(), counter_gpu=counter_gpu] __device__ (size_t i) {
-        if (grid_hit[i]) atomicAdd(counter_gpu, 1);
+        if (grid_hit[i] > 0) atomicAdd(counter_gpu, 1);
     });
     uint64_t counter_cpu;
     CUDA_CHECK_THROW(cudaMemcpyAsync(&counter_cpu, counter_gpu, sizeof(uint64_t), cudaMemcpyDeviceToHost, m_stream.get()));

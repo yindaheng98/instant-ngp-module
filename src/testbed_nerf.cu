@@ -1743,7 +1743,7 @@ uint32_t Testbed::NerfTracer::trace(
 	int glow_mode,
 	const float* extra_dims_gpu,
 	cudaStream_t stream,
-	GPUMemory<bool>*& grid_hit,
+	GPUMemory<uint32_t>*& grid_hit,
 	bool get_grid_hit,
 	bool get_grid_hit_only,
 	GPUMemory<float>* density_grid,
@@ -1764,6 +1764,7 @@ uint32_t Testbed::NerfTracer::trace(
 	uint32_t i = 1;
 	uint32_t double_buffer_index = 0;
 	while (i < MARCH_ITER) {
+		network->grid_hit_step = i;
 		RaysNerfSoa& rays_current = m_rays[(double_buffer_index + 1) % 2];
 		RaysNerfSoa& rays_tmp = m_rays[double_buffer_index % 2];
 		++double_buffer_index;
@@ -2018,7 +2019,7 @@ void Testbed::render_nerf(
 	if (render_2d) {
 		n_hit = tracer.n_rays_initialized();
 	} else {
-		GPUMemory<bool>* grid_hit;
+		GPUMemory<uint32_t>* grid_hit;
 		n_hit = tracer.trace(
 			nerf_network,
 			m_render_aabb,
