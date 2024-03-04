@@ -201,7 +201,7 @@ int main_func(const std::vector<std::string>& arguments) {
 	}
 
 	if (onlyhit_flag) {
-		testbed.get_grid_hit_only = true; // TODO: true = slow?
+		testbed.get_grid_hit_only = true;
 	}
 
 	testbed.m_train = false;
@@ -273,11 +273,22 @@ int main_func(const std::vector<std::string>& arguments) {
 			current_display = (current_display + 1) % frame_sequence.size();
 			auto end = std::chrono::steady_clock::now();
 			tlog::info() << std::chrono::duration<float>(end - start).count() << "s ok diff_frame_dequeue";
+			testbed.m_nerf.density_grid.memset(0);
+			/*
+			!Important TODO
+			Here, if density_grid is large, the ray marching would exit early, cause error in rendering.
+			Therefore, we need a small density_grid.
+			If we call update_density_grid_nerf with smallest = true, density_grid will be small, and the density_grid_bitfield will updated.
+			But ray marching start at the first occupied voxel in density_grid_bitfield.
+			Therefore, once density_grid_bitfield updated with a small density_grid, ray marching will never start.
+			PS: density_grid will go through an activation function before use as density in ray marching, so memset(0) has no different with memset(1).
+			*/
 		}
 		if (testbed.load_frame_dequeue()) {
 			current_display = (current_display + 1) % frame_sequence.size();
 			auto end = std::chrono::steady_clock::now();
 			tlog::info() << std::chrono::duration<float>(end - start).count() << "s ok load_frame_dequeue";
+			testbed.m_nerf.density_grid.memset(0);
 		}
 		testbed.reset_accumulation();
 	}
