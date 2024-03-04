@@ -564,7 +564,7 @@ __global__ void composite_kernel_nerf(
 	ENerfActivation density_activation,
 	int show_accel,
 	float min_transmittance,
-	bool replay_debug
+	bool use_density_in_grid
 ) {
 	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
 	if (i >= n_elements) return;
@@ -746,13 +746,13 @@ __global__ void composite_kernel_nerf(
 			if (!breaked)
 			local_rgba /= local_rgba.a;
 			breaked = true;
-			if (!replay_debug)
+			if (!use_density_in_grid)
 			break;
 		}
 
 		if (local_grid_a > (1.0f - min_transmittance)) {
 			local_grid_a /= local_grid_a;
-			if (replay_debug)
+			if (use_density_in_grid)
 			break;
 		}
 	}
@@ -1746,7 +1746,8 @@ uint32_t Testbed::NerfTracer::trace(
 	GPUMemory<bool>*& grid_hit,
 	bool get_grid_hit,
 	bool get_grid_hit_only,
-	GPUMemory<float>* density_grid
+	GPUMemory<float>* density_grid,
+	bool use_density_in_grid
 ) {
 	if (m_n_rays_initialized == 0) {
 		return 0;
@@ -1861,7 +1862,7 @@ uint32_t Testbed::NerfTracer::trace(
 			density_activation,
 			show_accel,
 			min_transmittance,
-			false // yin: for ngp flow
+			use_density_in_grid // yin: for ngp flow
 		);
 
 		i += n_steps_between_compaction;
@@ -2043,7 +2044,8 @@ void Testbed::render_nerf(
 			grid_hit,
 			get_grid_hit,
 			get_grid_hit_only,
-			&m_nerf.density_grid
+			&m_nerf.density_grid,
+			get_grid_hit
 		);
 		if (get_grid_hit || get_grid_hit_only) do_grid_hit(grid_hit);
 		if (get_grid_hit_only) return;
