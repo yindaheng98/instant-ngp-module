@@ -563,7 +563,8 @@ __global__ void composite_kernel_nerf(
 	ENerfActivation rgb_activation,
 	ENerfActivation density_activation,
 	int show_accel,
-	float min_transmittance
+	float min_transmittance,
+	bool replay_debug
 ) {
 	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
 	if (i >= n_elements) return;
@@ -582,6 +583,7 @@ __global__ void composite_kernel_nerf(
 	// Composite in the last n steps
 	uint32_t actual_n_steps = payload.n_steps;
 	uint32_t j = 0;
+	bool breaked = false;
 
 	for (; j < actual_n_steps; ++j) {
 		tvec<network_precision_t, 4> local_network_output;
@@ -741,14 +743,18 @@ __global__ void composite_kernel_nerf(
 		}
 
 		if (local_rgba.a > (1.0f - min_transmittance)) {
+			if (!breaked)
 			local_rgba /= local_rgba.a;
+			breaked = true;
+			if (!replay_debug)
 			break;
 		}
 
-		// if (local_grid_a > (1.0f - min_transmittance)) {
-		// 	local_grid_a /= local_grid_a;
-		// 	break;
-		// }
+		if (local_grid_a > (1.0f - min_transmittance)) {
+			local_grid_a /= local_grid_a;
+			if (replay_debug)
+			break;
+		}
 	}
 
 	if (j < n_steps) {
@@ -1854,7 +1860,8 @@ uint32_t Testbed::NerfTracer::trace(
 			rgb_activation,
 			density_activation,
 			show_accel,
-			min_transmittance
+			min_transmittance,
+			false // yin: for ngp flow
 		);
 
 		i += n_steps_between_compaction;
