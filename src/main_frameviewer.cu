@@ -123,6 +123,13 @@ int main_func(const std::vector<std::string>& arguments) {
 		"Files to be loaded. Can be a scene, network config, snapshot, camera path, or a combination of those.",
 	};
 
+	Flag gethit_flag{
+		parser,
+		"GETHIT",
+		"Get grid hit record.",
+		{"gethit"},
+	};
+
 	// Parse command line arguments and react to parsing
 	// errors using exceptions.
 	try {
@@ -173,6 +180,10 @@ int main_func(const std::vector<std::string>& arguments) {
 
 	if (trunc_flag) {
 		testbed.m_nerf.training.density_grid_decay = get(trunc_flag);
+	}
+
+	if (gethit_flag) {
+		testbed.get_grid_hit = true;
 	}
 
 	testbed.m_train = !no_train_flag;
