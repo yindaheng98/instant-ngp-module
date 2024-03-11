@@ -84,8 +84,10 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     CUDA_CHECK_THROW(cudaMemcpyAsync(counter_cpu, counter_gpu, sizeof(uint64_t) * K, cudaMemcpyDeviceToHost, m_stream.get()));
     CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
     CUDA_CHECK_THROW(cudaFree(counter_gpu));
-    for (uint64_t k=0;k<K;k++)
-    tlog::info() << grid_hit->data() << ' ' << counter_cpu[k] << '/' << grid_hit->size();
+    // for (uint64_t k=0;k<K;k++)
+    // tlog::info() << grid_hit->data() << ' ' << counter_cpu[k] << '/' << grid_hit->size();
+    tlog::info() << grid_hit->data() << ' ' << counter_cpu[0] << '/' << grid_hit->size();
+    // TODO: 记录下每个参数是否已发送，先看看别人的论文都如何实现对每块参数进行记录的
 }
 
 }
