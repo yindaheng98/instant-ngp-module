@@ -515,6 +515,8 @@ void Testbed::reset_network(bool clear_density_grid) {
 		}
 
 		float desired_resolution = 2048.0f; // Desired resolution of the finest hashgrid level over the unit cube
+		if (encoding_config.contains("desired_resolution"))
+			desired_resolution = encoding_config.value("desired_resolution", 2048.0f) / (float)m_nerf.training.dataset.aabb_scale;
 		if (m_testbed_mode == ETestbedMode::Image) {
 			desired_resolution = max(m_image.resolution) / 2.0f;
 		} else if (m_testbed_mode == ETestbedMode::Volume) {
