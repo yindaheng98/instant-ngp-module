@@ -616,7 +616,9 @@ NerfDataset load_nerf(const std::vector<fs::path>& jsonpaths, float sharpen_amou
 					dst.mask_color = 0x00FF00FF; // HOT PINK
 					for (int i = 0; i < product(dst.res); ++i) {
 						if (mask_img[i*4] != 0 || mask_img[i*4+1] != 0 || mask_img[i*4+2] != 0) {
-							*(uint32_t*)&img[i*4] = dst.mask_color;
+							// *(uint32_t*)&img[i*4] = dst.mask_color;
+						} else {
+							*(uint32_t*)&img[i*4] = dst.mask_color; // yin: white is useful, black is masked
 						}
 					}
 				}
