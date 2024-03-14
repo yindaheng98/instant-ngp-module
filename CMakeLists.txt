@@ -384,6 +384,8 @@ if (NGP_BUILD_EXECUTABLE)
 	target_link_libraries(instant-ngp-train PRIVATE ngp-train)
 	add_executable(instant-ngp-viewer src/main_frameviewer.cu)
 	target_link_libraries(instant-ngp-viewer PRIVATE ngp)
+	add_executable(instant-ngp-quality src/main_framequality.cu)
+	target_link_libraries(instant-ngp-quality PRIVATE ngp)
 	add_executable(instant-ngp-replay src/main_replay.cu)
 	target_link_libraries(instant-ngp-replay PRIVATE ngp)
 
