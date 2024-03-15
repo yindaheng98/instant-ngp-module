@@ -104,9 +104,7 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     uint64_t* last_counter_gpu = counter_gpu + 1;
     parallel_for_gpu(m_stream.get(), grid_hit->size(), [grid_hit=grid_hit->data(), last_grid_hit=last_grid_hit.data(), accu_grid_hit=accu_grid_hit.data(), accu_counter_gpu, last_counter_gpu] __device__ (size_t i) {
         if (grid_hit[i] > 0 && !last_grid_hit[i]) atomicAdd(last_counter_gpu, 1);
-        last_grid_hit[i] = grid_hit[i] > 0;
         if (grid_hit[i] > 0 && !accu_grid_hit[i]) atomicAdd(accu_counter_gpu, 1);
-        accu_grid_hit[i] = grid_hit[i] > 0 || accu_grid_hit[i];
     });
     CUDA_CHECK_THROW(cudaMemcpyAsync(counter_cpu, counter_gpu, sizeof(uint64_t) * 2, cudaMemcpyDeviceToHost, m_stream.get()));
     CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
@@ -130,6 +128,11 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
     CUDA_CHECK_THROW(cudaFree(counter_gpu));
     tlog::info() << "inter " << int_counter_cpu[0] << " intra " << int_counter_cpu[1] << " equal " << int_counter_cpu[2];
+
+    parallel_for_gpu(m_stream.get(), grid_hit->size(), [grid_hit=grid_hit->data(), last_grid_hit=last_grid_hit.data(), accu_grid_hit=accu_grid_hit.data()] __device__ (size_t i) {
+        last_grid_hit[i] = grid_hit[i] > 0;
+        accu_grid_hit[i] = grid_hit[i] > 0 || accu_grid_hit[i];
+    });
 }
 
 }
