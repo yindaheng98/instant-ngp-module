@@ -4026,56 +4026,48 @@ bool Testbed::diff_frame_enqueue(const fs::path& path) { // yin: for ngp flow
 	return frame_data_enqueue(path, diff_frame_queue);
 }
 
-void Testbed::set_params(__half* params_gpu, uint32_t* index_gpu, size_t n) { // yin: for ngp flow
+void Testbed::set_params(__half* params_gpu, size_t n, uint32_t* index_gpu) { // yin: for ngp flow
 	size_t m = n_params();
 	if (m_network->params() != nullptr){
+		if (index_gpu != nullptr)
 		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->params(), params=params_gpu, index=index_gpu, m] __device__ (size_t i) {
 			if (index[i] < m) local_params[index[i]] = (network_precision_t)params[i];
 		});
-	}
-	if (m_network->inference_params() != nullptr && m_network->inference_params() != m_network->params()) {
-		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->inference_params(), params=params_gpu, index=index_gpu, m] __device__ (size_t i) {
-			if (index[i] < m) local_params[index[i]] = (network_precision_t)params[i];
-		});
-	}
-}
-
-void Testbed::set_params(__half* params_gpu, size_t n) { // yin: for ngp flow
-	size_t m = n_params();
-	if (m_network->params() != nullptr){
+		else
 		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->params(), params=params_gpu, m] __device__ (size_t i) {
 			if (i < m) local_params[i] = (network_precision_t)params[i];
 		});
 	}
 	if (m_network->inference_params() != nullptr && m_network->inference_params() != m_network->params()) {
+		if (index_gpu != nullptr)
+		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->inference_params(), params=params_gpu, index=index_gpu, m] __device__ (size_t i) {
+			if (index[i] < m) local_params[index[i]] = (network_precision_t)params[i];
+		});
+		else
 		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->inference_params(), params=params_gpu, m] __device__ (size_t i) {
 			if (i < m) local_params[i] = (network_precision_t)params[i];
 		});
 	}
 }
 
-void Testbed::add_params(__half* params_gpu, uint32_t* index_gpu, size_t n) { // yin: for ngp flow
+void Testbed::add_params(__half* params_gpu, size_t n, uint32_t* index_gpu) { // yin: for ngp flow
 	size_t m = n_params();
 	if (m_network->params() != nullptr){
+		if (index_gpu != nullptr)
 		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->params(), params=params_gpu, index=index_gpu, m] __device__ (size_t i) {
 			if (index[i] < m) local_params[index[i]] += (network_precision_t)params[i];
 		});
-	}
-	if (m_network->inference_params() != nullptr && m_network->inference_params() != m_network->params()) {
-		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->inference_params(), params=params_gpu, index=index_gpu, m] __device__ (size_t i) {
-			if (index[i] < m) local_params[index[i]] += (network_precision_t)params[i];
-		});
-	}
-}
-
-void Testbed::add_params(__half* params_gpu, size_t n) { // yin: for ngp flow
-	size_t m = n_params();
-	if (m_network->params() != nullptr){
+		else
 		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->params(), params=params_gpu, m] __device__ (size_t i) {
 			if (i < m) local_params[i] += (network_precision_t)params[i];
 		});
 	}
 	if (m_network->inference_params() != nullptr && m_network->inference_params() != m_network->params()) {
+		if (index_gpu != nullptr)
+		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->inference_params(), params=params_gpu, index=index_gpu, m] __device__ (size_t i) {
+			if (index[i] < m) local_params[index[i]] += (network_precision_t)params[i];
+		});
+		else
 		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->inference_params(), params=params_gpu, m] __device__ (size_t i) {
 			if (i < m) local_params[i] += (network_precision_t)params[i];
 		});
@@ -4146,8 +4138,7 @@ void Testbed::add_density_grid(__half* density_grid_gpu, size_t n) { // yin: for
 bool Testbed::load_frame_dequeue() { // yin: for ngp flow
 	if (load_frame_queue.empty()) return false;
 	QueueObj obj = load_frame_queue.front();
-	if (obj.params_index != nullptr) set_params(obj.params, obj.params_index, obj.params_size);
-	else set_params(obj.params, obj.params_size);
+	set_params(obj.params, obj.params_size, obj.params_index);
 	if (obj.density_grid_index != nullptr) set_density_grid(obj.density_grid, obj.density_grid_index, obj.density_grid_size);
 	else set_density_grid(obj.density_grid, obj.density_grid_size);
 	load_frame_queue.pop();
@@ -4161,8 +4152,7 @@ bool Testbed::load_frame_dequeue() { // yin: for ngp flow
 bool Testbed::diff_frame_dequeue() { // yin: for ngp flow
 	if (diff_frame_queue.empty()) return false;
 	QueueObj obj = diff_frame_queue.front();
-	if (obj.params_index != nullptr) add_params(obj.params, obj.params_index, obj.params_size);
-	else add_params(obj.params, obj.params_size);
+	add_params(obj.params, obj.params_size, obj.params_index);
 	if (obj.density_grid_index != nullptr) add_density_grid(obj.density_grid, obj.density_grid_index, obj.density_grid_size);
 	else add_density_grid(obj.density_grid, obj.density_grid_size);
 	diff_frame_queue.pop();
@@ -4228,10 +4218,10 @@ size_t extract_nonzero(__half* data, uint32_t** index, size_t size, cudaStream_t
 bool Testbed::diff_frame_nonzero_dequeue() { // yin: for ngp flow
 	if (diff_frame_queue.empty()) return false;
 	QueueObj obj = diff_frame_queue.front();
-	if (obj.params_index != nullptr) add_params(obj.params, obj.params_index, obj.params_size);
+	if (obj.params_index != nullptr) add_params(obj.params, obj.params_size, obj.params_index);
 	else {
 		obj.params_size = extract_nonzero(obj.params, &obj.params_index, obj.params_size, m_stream.get());
-		add_params(obj.params, obj.params_index, obj.params_size);
+		add_params(obj.params, obj.params_size, obj.params_index);
 	}
 	if (obj.density_grid_index != nullptr) add_density_grid(obj.density_grid, obj.density_grid_index, obj.density_grid_size);
 	else {

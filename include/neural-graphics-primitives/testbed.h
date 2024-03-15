@@ -502,10 +502,8 @@ private:
 	bool frame_data_enqueue(const fs::path& path, std::queue<QueueObj>& queue); // yin: for ngp flow
 	std::atomic<int64_t> read_frame_thread_counter = {0}; // yin: for ngp flow
 public:
-	void set_params(__half* params_gpu, uint32_t* index_gpu, size_t n); // yin: for ngp flow
-	void set_params(__half* params_gpu, size_t n); // yin: for ngp flow
-	void add_params(__half* params_gpu, uint32_t* index_gpu, size_t n); // yin: for ngp flow
-	void add_params(__half* params_gpu, size_t n); // yin: for ngp flow
+	void set_params(__half* params_gpu, size_t n, uint32_t* index_gpu = nullptr); // yin: for ngp flow
+	void add_params(__half* params_gpu, size_t n, uint32_t* index_gpu = nullptr); // yin: for ngp flow
 	// void set_params_load_cache_size(size_t size); // yin: for ngp flow
 	void set_density_grid(__half* density_grid_gpu, uint32_t* index_gpu, size_t n); // yin: for ngp flow
 	void set_density_grid(__half* density_grid_gpu, size_t n); // yin: for ngp flow
