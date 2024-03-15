@@ -70,6 +70,7 @@
 using namespace std::literals::chrono_literals;
 
 namespace ngp {
+GPUMemory<bool> accu_grid_hit;
 GPUMemory<bool> last_grid_hit;
 
 void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
@@ -89,23 +90,46 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     // tlog::info() << grid_hit->data() << ' ' << counter_cpu[k] << '/' << grid_hit->size();
     tlog::info() << grid_hit->data() << ' ' << counter_cpu[0] << '/' << grid_hit->size();
 
-    CUDA_CHECK_THROW(cudaMalloc(&counter_gpu, sizeof(uint64_t)));
-    CUDA_CHECK_THROW(cudaMemset(counter_gpu, 0, sizeof(uint64_t)));
+    if (accu_grid_hit.size() != grid_hit->size()) {
+        accu_grid_hit.resize(grid_hit->size());
+        accu_grid_hit.memset(0);
+    }
     if (last_grid_hit.size() != grid_hit->size()) {
         last_grid_hit.resize(grid_hit->size());
         last_grid_hit.memset(0);
     }
-    parallel_for_gpu(m_stream.get(), grid_hit->size(), [grid_hit=grid_hit->data(), last_grid_hit=last_grid_hit.data(), counter_gpu=counter_gpu] __device__ (size_t i) {
-        if (grid_hit[i] > 0) {
-            if (!last_grid_hit[i])
-                atomicAdd(counter_gpu, 1);
-                last_grid_hit[i] = true;
-        }
+    CUDA_CHECK_THROW(cudaMalloc(&counter_gpu, sizeof(uint64_t) * 2));
+    CUDA_CHECK_THROW(cudaMemset(counter_gpu, 0, sizeof(uint64_t) * 2));
+    uint64_t* accu_counter_gpu = counter_gpu;
+    uint64_t* last_counter_gpu = counter_gpu + 1;
+    parallel_for_gpu(m_stream.get(), grid_hit->size(), [grid_hit=grid_hit->data(), last_grid_hit=last_grid_hit.data(), accu_grid_hit=accu_grid_hit.data(), accu_counter_gpu, last_counter_gpu] __device__ (size_t i) {
+        if (grid_hit[i] > 0 && !last_grid_hit[i]) atomicAdd(last_counter_gpu, 1);
+        last_grid_hit[i] = grid_hit[i] > 0;
+        if (grid_hit[i] > 0 && !accu_grid_hit[i]) atomicAdd(accu_counter_gpu, 1);
+        accu_grid_hit[i] = grid_hit[i] > 0 || accu_grid_hit[i];
     });
-    CUDA_CHECK_THROW(cudaMemcpyAsync(counter_cpu, counter_gpu, sizeof(uint64_t), cudaMemcpyDeviceToHost, m_stream.get()));
+    CUDA_CHECK_THROW(cudaMemcpyAsync(counter_cpu, counter_gpu, sizeof(uint64_t) * 2, cudaMemcpyDeviceToHost, m_stream.get()));
     CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
     CUDA_CHECK_THROW(cudaFree(counter_gpu));
-    tlog::info() << grid_hit->data() << ' ' << counter_cpu[0] << " not overlap";
+    tlog::info() << grid_hit->data() << ' ' << counter_cpu[0] << " not overlap accu" << ' ' << counter_cpu[1] << " not overlap last";
+
+    if (last_grid_frame.size() != n_params() || this_grid_frame.size() != n_params()) return;
+    CUDA_CHECK_THROW(cudaMalloc(&counter_gpu, sizeof(uint64_t) * 3));
+    CUDA_CHECK_THROW(cudaMemset(counter_gpu, 0, sizeof(uint64_t) * 3));
+    uint64_t* inter_counter_gpu = counter_gpu;
+    uint64_t* intra_counter_gpu = counter_gpu + 1;
+	uint64_t* equal_counter_gpu = counter_gpu + 2;
+    parallel_for_gpu(m_stream.get(), grid_hit->size(), [grid_hit=grid_hit->data(), last_grid_frame=last_grid_frame.data(), this_grid_frame=this_grid_frame.data(), inter_counter_gpu, intra_counter_gpu, equal_counter_gpu] __device__ (size_t i) {
+        if (grid_hit[i] <= 0) return;
+        if (this_grid_frame[i] == last_grid_frame[i] + 1) atomicAdd(inter_counter_gpu, 1);
+        else if (last_grid_frame[i] != this_grid_frame[i]) atomicAdd(intra_counter_gpu, 1);
+		else atomicAdd(equal_counter_gpu, 1);
+    });
+    uint64_t int_counter_cpu[2];
+    CUDA_CHECK_THROW(cudaMemcpyAsync(int_counter_cpu, counter_gpu, sizeof(uint64_t) * 3, cudaMemcpyDeviceToHost, m_stream.get()));
+    CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
+    CUDA_CHECK_THROW(cudaFree(counter_gpu));
+    tlog::info() << "inter " << int_counter_cpu[0] << " intra " << int_counter_cpu[1] << " equal " << int_counter_cpu[2];
 }
 
 }

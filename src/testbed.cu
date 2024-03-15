@@ -4037,6 +4037,21 @@ bool Testbed::diff_frame_enqueue(const fs::path& path) { // yin: for ngp flow
 	return frame_data_enqueue(path, diff_frame_queue);
 }
 
+void Testbed::sync_grid_frame() { // yin: for ngp flow
+	size_t m = n_params();
+	if (this_grid_frame.size() != m) {
+		this_grid_frame.resize(m);
+		this_grid_frame.memset(-128);
+	}
+	if (last_grid_frame.size() != m) {
+		last_grid_frame.resize(m);
+		last_grid_frame.memset(-128);
+	}
+	parallel_for_gpu(m_stream.get(), m, [this_grid_frame=this_grid_frame.data(), last_grid_frame=last_grid_frame.data()] __device__ (size_t i) {
+		last_grid_frame[i] = this_grid_frame[i];
+	});
+}
+
 void Testbed::set_params(__half* params_gpu, size_t n, uint32_t* index_gpu) { // yin: for ngp flow
 	size_t m = n_params();
 	if (m_network->params() != nullptr){
@@ -4061,6 +4076,38 @@ void Testbed::set_params(__half* params_gpu, size_t n, uint32_t* index_gpu) { //
 	}
 }
 
+void Testbed::set_params_setframe(int64_t frame, __half* params_gpu, size_t n, uint32_t* index_gpu) { // yin: for ngp flow
+	size_t m = n_params();
+	if (m_network->params() != nullptr){
+		if (index_gpu != nullptr)
+		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->params(), params=params_gpu, index=index_gpu, m, frame, grid_frame=this_grid_frame.data()] __device__ (size_t i) {
+			if (index[i] < m) {
+				if (grid_frame[index[i]]>=0 && local_params[index[i]] == (network_precision_t)params[i]) return;
+				local_params[index[i]] = (network_precision_t)params[i];
+				grid_frame[index[i]] = frame;
+			}
+		});
+		else
+		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->params(), params=params_gpu, m, frame, grid_frame=this_grid_frame.data()] __device__ (size_t i) {
+			if (i < m) {
+				if (grid_frame[i]>=0 && local_params[i] == (network_precision_t)params[i]) return;
+				local_params[i] = (network_precision_t)params[i];
+				grid_frame[i] = frame;
+			}
+		});
+	}
+	if (m_network->inference_params() != nullptr && m_network->inference_params() != m_network->params()) {
+		if (index_gpu != nullptr)
+		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->inference_params(), params=params_gpu, index=index_gpu, m] __device__ (size_t i) {
+			if (index[i] < m) local_params[index[i]] = (network_precision_t)params[i];
+		});
+		else
+		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->inference_params(), params=params_gpu, m] __device__ (size_t i) {
+			if (i < m) local_params[i] = (network_precision_t)params[i];
+		});
+	}
+}
+
 void Testbed::add_params(__half* params_gpu, size_t n, uint32_t* index_gpu) { // yin: for ngp flow
 	size_t m = n_params();
 	if (m_network->params() != nullptr){
@@ -4071,6 +4118,38 @@ void Testbed::add_params(__half* params_gpu, size_t n, uint32_t* index_gpu) { //
 		else
 		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->params(), params=params_gpu, m] __device__ (size_t i) {
 			if (i < m) local_params[i] += (network_precision_t)params[i];
+		});
+	}
+	if (m_network->inference_params() != nullptr && m_network->inference_params() != m_network->params()) {
+		if (index_gpu != nullptr)
+		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->inference_params(), params=params_gpu, index=index_gpu, m] __device__ (size_t i) {
+			if (index[i] < m) local_params[index[i]] += (network_precision_t)params[i];
+		});
+		else
+		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->inference_params(), params=params_gpu, m] __device__ (size_t i) {
+			if (i < m) local_params[i] += (network_precision_t)params[i];
+		});
+	}
+}
+
+void Testbed::add_params_setframe(int64_t frame, __half* params_gpu, size_t n, uint32_t* index_gpu) { // yin: for ngp flow
+	size_t m = n_params();
+	if (m_network->params() != nullptr){
+		if (index_gpu != nullptr)
+		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->params(), params=params_gpu, index=index_gpu, m, frame, grid_frame=this_grid_frame.data()] __device__ (size_t i) {
+			if (index[i] < m) {
+				if (local_params[index[i]] + (network_precision_t)params[i] == local_params[index[i]]) return;
+				local_params[index[i]] += (network_precision_t)params[i];
+				grid_frame[index[i]] = frame;
+			}
+		});
+		else
+		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->params(), params=params_gpu, m, frame, grid_frame=this_grid_frame.data()] __device__ (size_t i) {
+			if (i < m) {
+				if (local_params[i] + (network_precision_t)params[i] == local_params[i]) return;
+				local_params[i] += (network_precision_t)params[i];
+				grid_frame[i] = frame;
+			}
 		});
 	}
 	if (m_network->inference_params() != nullptr && m_network->inference_params() != m_network->params()) {
@@ -4118,10 +4197,32 @@ bool Testbed::load_frame_dequeue() { // yin: for ngp flow
 	return true;
 }
 
+bool Testbed::load_frame_dequeue_setframe(int64_t frame) { // yin: for ngp flow
+	sync_grid_frame();
+	if (load_frame_queue.empty()) return false;
+	QueueObj obj = load_frame_queue.front();
+	set_params_setframe(frame, obj.params, obj.params_size, obj.params_index);
+	set_density_grid(obj.density_grid, obj.density_grid_size, obj.density_grid_index, obj.density_grid_bitfield, obj.density_grid_bitfield_size);
+	load_frame_queue.pop();
+	FreeQueueObj(obj);
+	return true;
+}
+
 bool Testbed::diff_frame_dequeue() { // yin: for ngp flow
 	if (diff_frame_queue.empty()) return false;
 	QueueObj obj = diff_frame_queue.front();
 	add_params(obj.params, obj.params_size, obj.params_index);
+	set_density_grid(obj.density_grid, obj.density_grid_size, obj.density_grid_index, obj.density_grid_bitfield, obj.density_grid_bitfield_size);
+	diff_frame_queue.pop();
+	FreeQueueObj(obj);
+	return true;
+}
+
+bool Testbed::diff_frame_dequeue_setframe(int64_t frame) { // yin: for ngp flow
+	sync_grid_frame();
+	if (diff_frame_queue.empty()) return false;
+	QueueObj obj = diff_frame_queue.front();
+	add_params_setframe(frame, obj.params, obj.params_size, obj.params_index);
 	set_density_grid(obj.density_grid, obj.density_grid_size, obj.density_grid_index, obj.density_grid_bitfield, obj.density_grid_bitfield_size);
 	diff_frame_queue.pop();
 	FreeQueueObj(obj);

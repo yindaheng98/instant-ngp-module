@@ -478,6 +478,8 @@ public:
 	bool load_frame_dequeue(); // yin: for ngp flow
 	bool diff_frame_dequeue(); // yin: for ngp flow
 	bool diff_frame_nonzero_dequeue(); // yin: for ngp flow
+	bool load_frame_dequeue_setframe(int64_t frame); // yin: for ngp flow
+	bool diff_frame_dequeue_setframe(int64_t frame); // yin: for ngp flow
 	void enable_residual_regulization(network_precision_t l2_reg); // yin: for ngp flow
 	json dump_camera(); // yin: for ngp flow
 	json dump_views(); // yin: for ngp flow
@@ -486,7 +488,10 @@ public:
 	bool get_grid_hit = false; // yin: for ngp flow
 	bool get_grid_hit_only = false; // yin: for ngp flow
 	void do_grid_hit(GPUMemory<uint32_t>* grid_hit); // yin: for ngp flow
+	void sync_grid_frame(); // yin: for ngp flow
 private:
+	GPUMemory<int64_t> last_grid_frame; // yin: for ngp flow
+	GPUMemory<int64_t> this_grid_frame; // yin: for ngp flow
 	GPUMemory<bool>* grid_hit; // yin: for ngp flow
 	struct QueueObj { // yin: for ngp flow
 		__half* params;
@@ -514,6 +519,8 @@ private:
 public:
 	void set_params(__half* params_gpu, size_t n, uint32_t* index_gpu = nullptr); // yin: for ngp flow
 	void add_params(__half* params_gpu, size_t n, uint32_t* index_gpu = nullptr); // yin: for ngp flow
+	void set_params_setframe(int64_t frame, __half* params_gpu, size_t n, uint32_t* index_gpu = nullptr); // yin: for ngp flow
+	void add_params_setframe(int64_t frame, __half* params_gpu, size_t n, uint32_t* index_gpu = nullptr); // yin: for ngp flow
 	void set_density_grid(__half* density_grid_gpu, size_t n, uint32_t* index_gpu = nullptr, uint8_t* bitfield_gpu = nullptr, size_t bit_n = 0); // yin: for ngp flow
 	void join_last_update_frame_thread(); // yin: for ngp flow
 // private:

@@ -269,10 +269,10 @@ int main_func(const std::vector<std::string>& arguments) {
 		}
 
 		auto start = std::chrono::steady_clock::now();
-		if (testbed.diff_frame_dequeue()) {
-			current_display = (current_display + 1) % frame_sequence.size();
+		if (testbed.get_grid_hit ? testbed.diff_frame_dequeue_setframe(current_display) : testbed.diff_frame_dequeue()) {
 			auto end = std::chrono::steady_clock::now();
-			tlog::info() << std::chrono::duration<float>(end - start).count() << "s ok diff_frame_dequeue";
+			tlog::info() << std::chrono::duration<float>(end - start).count() << "s ok diff_frame_dequeue " << current_display;
+			current_display = (current_display + 1) % frame_sequence.size();
 			testbed.m_nerf.density_grid.memset(0);
 			/*
 			!Important TODO
@@ -284,10 +284,10 @@ int main_func(const std::vector<std::string>& arguments) {
 			PS: density_grid will go through an activation function before use as density in ray marching, so memset(0) here has no different with memset(1),memset(2),memset(3)...
 			*/
 		}
-		if (testbed.load_frame_dequeue()) {
-			current_display = (current_display + 1) % frame_sequence.size();
+		if (testbed.get_grid_hit ? testbed.load_frame_dequeue_setframe(current_display) : testbed.load_frame_dequeue()) {
 			auto end = std::chrono::steady_clock::now();
-			tlog::info() << std::chrono::duration<float>(end - start).count() << "s ok load_frame_dequeue";
+			tlog::info() << std::chrono::duration<float>(end - start).count() << "s ok load_frame_dequeue " << current_display;
+			current_display = (current_display + 1) % frame_sequence.size();
 			testbed.m_nerf.density_grid.memset(0);
 		}
 		testbed.reset_accumulation();
