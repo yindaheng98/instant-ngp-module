@@ -724,6 +724,7 @@ void Testbed::save_snapshot(const fs::path& path, bool include_optimizer_state, 
 		});
 
 		snapshot["density_grid_binary"] = density_grid_fp16;
+		snapshot["density_grid_bitfield"] = m_nerf.density_grid_bitfield;
 		snapshot["nerf"]["aabb_scale"] = m_nerf.training.dataset.aabb_scale;
 
 		snapshot["nerf"]["cam_pos_offset"] = m_nerf.training.cam_pos_offset;
@@ -827,11 +828,17 @@ void Testbed::load_snapshot(nlohmann::json config) {
 			density_grid[i] = (float)density_grid_fp16[i];
 		});
 
+		if (snapshot.contains("density_grid_bitfield")) {
+			tlog::info() << "Loading density_grid_bitfield";
+			m_nerf.density_grid_bitfield = snapshot["density_grid_bitfield"];
+		} else {
+			tlog::info() << "Computing density_grid_bitfield";
 		if (m_nerf.density_grid.size() == NERF_GRID_N_CELLS() * (m_nerf.max_cascade + 1)) {
 			update_density_grid_mean_and_bitfield(nullptr);
 		} else if (m_nerf.density_grid.size() != 0) {
 			// A size of 0 indicates that the density grid was never populated, which is a valid state of a (yet) untrained model.
 			throw std::runtime_error{"Incompatible number of grid cascades."};
+		}
 		}
 	}
 
