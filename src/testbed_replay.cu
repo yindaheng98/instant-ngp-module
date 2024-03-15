@@ -70,6 +70,7 @@
 using namespace std::literals::chrono_literals;
 
 namespace ngp {
+GPUMemory<bool> last_grid_hit;
 
 void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     const uint64_t K = 64;
@@ -87,7 +88,24 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     // for (uint64_t k=0;k<K;k++)
     // tlog::info() << grid_hit->data() << ' ' << counter_cpu[k] << '/' << grid_hit->size();
     tlog::info() << grid_hit->data() << ' ' << counter_cpu[0] << '/' << grid_hit->size();
-    // TODO: 记录下每个参数是否已发送，先看看别人的论文都如何实现对每块参数进行记录的
+
+    CUDA_CHECK_THROW(cudaMalloc(&counter_gpu, sizeof(uint64_t)));
+    CUDA_CHECK_THROW(cudaMemset(counter_gpu, 0, sizeof(uint64_t)));
+    if (last_grid_hit.size() != grid_hit->size()) {
+        last_grid_hit.resize(grid_hit->size());
+        last_grid_hit.memset(0);
+    }
+    parallel_for_gpu(m_stream.get(), grid_hit->size(), [grid_hit=grid_hit->data(), last_grid_hit=last_grid_hit.data(), counter_gpu=counter_gpu] __device__ (size_t i) {
+        if (grid_hit[i] > 0) {
+            if (!last_grid_hit[i])
+                atomicAdd(counter_gpu, 1);
+                last_grid_hit[i] = true;
+        }
+    });
+    CUDA_CHECK_THROW(cudaMemcpyAsync(counter_cpu, counter_gpu, sizeof(uint64_t), cudaMemcpyDeviceToHost, m_stream.get()));
+    CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
+    CUDA_CHECK_THROW(cudaFree(counter_gpu));
+    tlog::info() << grid_hit->data() << ' ' << counter_cpu[0] << " not overlap";
 }
 
 }
