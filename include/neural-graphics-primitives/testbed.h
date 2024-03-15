@@ -495,7 +495,17 @@ private:
 		__half* density_grid;
 		uint32_t* density_grid_index;
 		size_t density_grid_size;
+		uint8_t* density_grid_bitfield;
+		size_t density_grid_bitfield_size;
 	};
+	void FreeQueueObj(QueueObj obj) {
+	if (obj.params != nullptr) cudaFree(obj.params);
+	if (obj.params_index != nullptr) cudaFree(obj.params_index);
+	if (obj.density_grid != nullptr) cudaFree(obj.density_grid);
+	if (obj.density_grid_index != nullptr) cudaFree(obj.density_grid_index);
+	if (obj.density_grid_bitfield != nullptr) cudaFree(obj.density_grid_bitfield);
+
+	}
 	std::queue<QueueObj> load_frame_queue; // yin: for ngp flow
 	std::queue<QueueObj> diff_frame_queue; // yin: for ngp flow
 	std::thread last_update_frame_thread; // yin: for ngp flow
@@ -504,7 +514,7 @@ private:
 public:
 	void set_params(__half* params_gpu, size_t n, uint32_t* index_gpu = nullptr); // yin: for ngp flow
 	void add_params(__half* params_gpu, size_t n, uint32_t* index_gpu = nullptr); // yin: for ngp flow
-	void set_density_grid(__half* density_grid_gpu, size_t n, uint32_t* index_gpu = nullptr); // yin: for ngp flow
+	void set_density_grid(__half* density_grid_gpu, size_t n, uint32_t* index_gpu = nullptr, uint8_t* bitfield_gpu = nullptr, size_t bit_n = 0); // yin: for ngp flow
 	void join_last_update_frame_thread(); // yin: for ngp flow
 // private:
 // 	GPUMemory<__half> params_gpu; // yin: for ngp flow

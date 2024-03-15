@@ -3992,6 +3992,17 @@ bool Testbed::frame_data_enqueue(const fs::path& path, std::queue<QueueObj>& que
 				qobj.params_index = nullptr;
 				qobj.params_size = params_size;
 			}
+			if (data.contains("density_grid_bitfield_size") && data.contains("density_grid_bitfield")) {
+				uint32_t density_grid_size = data["density_grid_bitfield_size"];
+				auto density_grid_raw = data["density_grid_bitfield"].get_binary();
+				if (density_grid_raw.size() != density_grid_size*sizeof(uint8_t))
+					throw std::runtime_error{"size of density_grid and density_grid_size not match."};
+				uint8_t* density_grid = nullptr;
+				CUDA_CHECK_THROW(cudaMalloc(&density_grid, density_grid_size*sizeof(uint8_t)));
+				CUDA_CHECK_THROW(cudaMemcpyAsync(density_grid, density_grid_raw.data(), density_grid_size*sizeof(uint8_t), cudaMemcpyHostToDevice, stream));
+				qobj.density_grid_bitfield = density_grid;
+				qobj.density_grid_bitfield_size = density_grid_size;
+			} else
 			if (data.contains("density_grid_size") && data.contains("density_grid")) {
 				uint32_t density_grid_size = data["density_grid_size"];
 				auto density_grid_raw = data["density_grid"].get_binary();
@@ -4074,7 +4085,7 @@ void Testbed::add_params(__half* params_gpu, size_t n, uint32_t* index_gpu) { //
 	}
 }
 
-void Testbed::set_density_grid(__half* density_grid_gpu, size_t n, uint32_t* index_gpu) { // yin: for ngp flow
+void Testbed::set_density_grid(__half* density_grid_gpu, size_t n, uint32_t* index_gpu, uint8_t* bitfield_gpu, size_t bit_n) { // yin: for ngp flow
 	size_t m = NERF_GRID_N_CELLS() * (m_nerf.max_cascade + 1);
 	if (index_gpu != nullptr)
 	parallel_for_gpu(m_stream.get(), n, [local_density_grid=m_nerf.density_grid.data(), density_grid=density_grid_gpu, index=index_gpu, m] __device__ (size_t i) {
@@ -4085,11 +4096,15 @@ void Testbed::set_density_grid(__half* density_grid_gpu, size_t n, uint32_t* ind
 		if (i < m) local_density_grid[i] = (float)density_grid[i];
 	});
 
+	if (bitfield_gpu != nullptr && bit_n > 0)
+	CUDA_CHECK_THROW(cudaMemcpyAsync(m_nerf.density_grid_bitfield.data(), bitfield_gpu, bit_n*sizeof(uint8_t), cudaMemcpyHostToDevice, m_stream.get()));
+	else {
 	if (m_nerf.density_grid.size() == NERF_GRID_N_CELLS() * (m_nerf.max_cascade + 1)) {
 		update_density_grid_mean_and_bitfield(m_stream.get());
 	} else if (m_nerf.density_grid.size() != 0) {
 		// A size of 0 indicates that the density grid was never populated, which is a valid state of a (yet) untrained model.
 		throw std::runtime_error{"Incompatible number of grid cascades."};
+	}
 	}
 }
 
@@ -4097,12 +4112,9 @@ bool Testbed::load_frame_dequeue() { // yin: for ngp flow
 	if (load_frame_queue.empty()) return false;
 	QueueObj obj = load_frame_queue.front();
 	set_params(obj.params, obj.params_size, obj.params_index);
-	set_density_grid(obj.density_grid, obj.density_grid_size, obj.density_grid_index);
+	set_density_grid(obj.density_grid, obj.density_grid_size, obj.density_grid_index, obj.density_grid_bitfield, obj.density_grid_bitfield_size);
 	load_frame_queue.pop();
-	cudaFree(obj.params);
-	if (obj.params_index != nullptr) cudaFree(obj.params_index);
-	cudaFree(obj.density_grid);
-	if (obj.density_grid_index != nullptr) cudaFree(obj.density_grid_index);
+	FreeQueueObj(obj);
 	return true;
 }
 
@@ -4110,12 +4122,9 @@ bool Testbed::diff_frame_dequeue() { // yin: for ngp flow
 	if (diff_frame_queue.empty()) return false;
 	QueueObj obj = diff_frame_queue.front();
 	add_params(obj.params, obj.params_size, obj.params_index);
-	set_density_grid(obj.density_grid, obj.density_grid_size, obj.density_grid_index);
+	set_density_grid(obj.density_grid, obj.density_grid_size, obj.density_grid_index, obj.density_grid_bitfield, obj.density_grid_bitfield_size);
 	diff_frame_queue.pop();
-	cudaFree(obj.params);
-	if (obj.params_index != nullptr) cudaFree(obj.params_index);
-	cudaFree(obj.density_grid);
-	if (obj.density_grid_index != nullptr) cudaFree(obj.density_grid_index);
+	FreeQueueObj(obj);
 	return true;
 }
 
@@ -4185,10 +4194,7 @@ bool Testbed::diff_frame_nonzero_dequeue() { // yin: for ngp flow
 		set_density_grid(obj.density_grid, obj.density_grid_size, obj.density_grid_index);
 	}
 	diff_frame_queue.pop();
-	cudaFree(obj.params);
-	cudaFree(obj.params_index);
-	cudaFree(obj.density_grid);
-	cudaFree(obj.density_grid_index);
+	FreeQueueObj(obj);
 	return true;
 }
 
