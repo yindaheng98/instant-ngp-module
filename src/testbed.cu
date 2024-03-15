@@ -4074,22 +4074,13 @@ void Testbed::add_params(__half* params_gpu, size_t n, uint32_t* index_gpu) { //
 	}
 }
 
-void Testbed::set_density_grid(__half* density_grid_gpu, uint32_t* index_gpu, size_t n) { // yin: for ngp flow
+void Testbed::set_density_grid(__half* density_grid_gpu, size_t n, uint32_t* index_gpu) { // yin: for ngp flow
 	size_t m = NERF_GRID_N_CELLS() * (m_nerf.max_cascade + 1);
+	if (index_gpu != nullptr)
 	parallel_for_gpu(m_stream.get(), n, [local_density_grid=m_nerf.density_grid.data(), density_grid=density_grid_gpu, index=index_gpu, m] __device__ (size_t i) {
 		if (index[i] < m) local_density_grid[index[i]] = (float)density_grid[i];
 	});
-
-	if (m_nerf.density_grid.size() == NERF_GRID_N_CELLS() * (m_nerf.max_cascade + 1)) {
-		update_density_grid_mean_and_bitfield(m_stream.get());
-	} else if (m_nerf.density_grid.size() != 0) {
-		// A size of 0 indicates that the density grid was never populated, which is a valid state of a (yet) untrained model.
-		throw std::runtime_error{"Incompatible number of grid cascades."};
-	}
-}
-
-void Testbed::set_density_grid(__half* density_grid_gpu, size_t n) { // yin: for ngp flow
-	size_t m = NERF_GRID_N_CELLS() * (m_nerf.max_cascade + 1);
+	else
 	parallel_for_gpu(m_stream.get(), n, [local_density_grid=m_nerf.density_grid.data(), density_grid=density_grid_gpu, m] __device__ (size_t i) {
 		if (i < m) local_density_grid[i] = (float)density_grid[i];
 	});
@@ -4106,8 +4097,7 @@ bool Testbed::load_frame_dequeue() { // yin: for ngp flow
 	if (load_frame_queue.empty()) return false;
 	QueueObj obj = load_frame_queue.front();
 	set_params(obj.params, obj.params_size, obj.params_index);
-	if (obj.density_grid_index != nullptr) set_density_grid(obj.density_grid, obj.density_grid_index, obj.density_grid_size);
-	else set_density_grid(obj.density_grid, obj.density_grid_size);
+	set_density_grid(obj.density_grid, obj.density_grid_size, obj.density_grid_index);
 	load_frame_queue.pop();
 	cudaFree(obj.params);
 	if (obj.params_index != nullptr) cudaFree(obj.params_index);
@@ -4120,8 +4110,7 @@ bool Testbed::diff_frame_dequeue() { // yin: for ngp flow
 	if (diff_frame_queue.empty()) return false;
 	QueueObj obj = diff_frame_queue.front();
 	add_params(obj.params, obj.params_size, obj.params_index);
-	if (obj.density_grid_index != nullptr) set_density_grid(obj.density_grid, obj.density_grid_index, obj.density_grid_size);
-	else set_density_grid(obj.density_grid, obj.density_grid_size);
+	set_density_grid(obj.density_grid, obj.density_grid_size, obj.density_grid_index);
 	diff_frame_queue.pop();
 	cudaFree(obj.params);
 	if (obj.params_index != nullptr) cudaFree(obj.params_index);
@@ -4190,10 +4179,10 @@ bool Testbed::diff_frame_nonzero_dequeue() { // yin: for ngp flow
 		obj.params_size = extract_nonzero(obj.params, &obj.params_index, obj.params_size, m_stream.get());
 		add_params(obj.params, obj.params_size, obj.params_index);
 	}
-	if (obj.density_grid_index != nullptr) set_density_grid(obj.density_grid, obj.density_grid_index, obj.density_grid_size);
+	if (obj.density_grid_index != nullptr) set_density_grid(obj.density_grid, obj.density_grid_size, obj.density_grid_index);
 	else {
 		obj.density_grid_size = extract_nonzero(obj.density_grid, &obj.density_grid_index, obj.density_grid_size, m_stream.get());
-		set_density_grid(obj.density_grid, obj.density_grid_index, obj.density_grid_size);
+		set_density_grid(obj.density_grid, obj.density_grid_size, obj.density_grid_index);
 	}
 	diff_frame_queue.pop();
 	cudaFree(obj.params);
