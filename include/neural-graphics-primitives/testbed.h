@@ -507,8 +507,6 @@ public:
 	// void set_params_load_cache_size(size_t size); // yin: for ngp flow
 	void set_density_grid(__half* density_grid_gpu, uint32_t* index_gpu, size_t n); // yin: for ngp flow
 	void set_density_grid(__half* density_grid_gpu, size_t n); // yin: for ngp flow
-	void add_density_grid(__half* density_grid_gpu, uint32_t* index_gpu, size_t n); // yin: for ngp flow
-	void add_density_grid(__half* density_grid_gpu, size_t n); // yin: for ngp flow
 	// void set_density_grid_load_cache_size(size_t size); // yin: for ngp flow
 	void join_last_update_frame_thread(); // yin: for ngp flow
 // private:
