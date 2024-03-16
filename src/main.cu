@@ -251,6 +251,10 @@ int main_func(const std::vector<std::string>& arguments) {
 			cameras_json["frame"] = frame_sequence[current_display];
 			if (savecam_flag) cam_out << cameras_json.dump() << endl;
 			else tlog::info() << cameras_json.dump();
+			// yin: get training view
+			// testbed.m_nerf.training.view = (testbed.m_nerf.training.view + 1) % testbed.m_nerf.training.dataset.n_images;
+			// testbed.set_camera_to_training_view(testbed.m_nerf.training.view);
+			// if (testbed.m_nerf.training.view == 0) return 0;
 		}
 
 		auto start = std::chrono::steady_clock::now();
