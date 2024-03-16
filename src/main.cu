@@ -252,18 +252,18 @@ int main_func(const std::vector<std::string>& arguments) {
 		}
 
 		if (savecam_flag) {
-			nlohmann::json cameras_json;
-			cameras_json["views"] = testbed.dump_views();
-			cameras_json["camera"] = testbed.dump_camera();
-			cameras_json["frame"] = frame_sequence[current_display];
-			if (savecam_flag) cam_out << cameras_json.dump() << endl;
-			else tlog::info() << cameras_json.dump();
 			// yin: get training view
 			if (trainingcam_flag) {
 				testbed.m_nerf.training.view++;
 				testbed.set_camera_to_training_view(testbed.m_nerf.training.view);
 				if (testbed.m_nerf.training.view >= testbed.m_nerf.training.dataset.n_images + 1) return 0;
 			}
+			nlohmann::json cameras_json;
+			cameras_json["views"] = testbed.dump_views();
+			cameras_json["camera"] = testbed.dump_camera();
+			cameras_json["frame"] = frame_sequence[current_display];
+			if (savecam_flag) cam_out << cameras_json.dump() << endl;
+			else tlog::info() << cameras_json.dump();
 		}
 
 		auto start = std::chrono::steady_clock::now();
