@@ -283,7 +283,7 @@ int main_func(const std::vector<std::string>& arguments) {
 			Therefore, once density_grid_bitfield updated with a small density_grid, ray marching will never start.
 			PS: density_grid will go through an activation function before use as density in ray marching, so memset(0) here has no different with memset(1),memset(2),memset(3)...
 			*/
-		}
+		} else
 		if (testbed.get_grid_hit ? testbed.load_frame_dequeue_setframe(current_display) : testbed.load_frame_dequeue()) {
 			auto end = std::chrono::steady_clock::now();
 			tlog::info() << std::chrono::duration<float>(end - start).count() << "s ok load_frame_dequeue " << current_display;
