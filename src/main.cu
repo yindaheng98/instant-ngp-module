@@ -143,6 +143,13 @@ int main_func(const std::vector<std::string>& arguments) {
 		{"savecam"},
 	};
 
+	Flag trainingcam_flag{
+		parser,
+		"TRAININGCAM",
+		"A special mode to export training view cams.",
+		{"trainingcam"},
+	};
+
 	// Parse command line arguments and react to parsing
 	// errors using exceptions.
 	try {
@@ -252,9 +259,11 @@ int main_func(const std::vector<std::string>& arguments) {
 			if (savecam_flag) cam_out << cameras_json.dump() << endl;
 			else tlog::info() << cameras_json.dump();
 			// yin: get training view
-			// testbed.m_nerf.training.view = (testbed.m_nerf.training.view + 1) % testbed.m_nerf.training.dataset.n_images;
-			// testbed.set_camera_to_training_view(testbed.m_nerf.training.view);
-			// if (testbed.m_nerf.training.view == 0) return 0;
+			if (trainingcam_flag) {
+				testbed.m_nerf.training.view++;
+				testbed.set_camera_to_training_view(testbed.m_nerf.training.view);
+				if (testbed.m_nerf.training.view >= testbed.m_nerf.training.dataset.n_images + 1) return 0;
+			}
 		}
 
 		auto start = std::chrono::steady_clock::now();
