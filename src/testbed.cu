@@ -4138,7 +4138,7 @@ void Testbed::add_params_setframe(int64_t frame, __half* params_gpu, size_t n, u
 		if (index_gpu != nullptr)
 		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->params(), params=params_gpu, index=index_gpu, m, frame, grid_frame=this_grid_frame.data()] __device__ (size_t i) {
 			if (index[i] < m) {
-				if (local_params[index[i]] + (network_precision_t)params[i] == local_params[index[i]]) return;
+				if (grid_frame[index[i]]>=0 && (float)params[i] == 0) return;
 				local_params[index[i]] += (network_precision_t)params[i];
 				grid_frame[index[i]] = frame;
 			}
@@ -4146,7 +4146,7 @@ void Testbed::add_params_setframe(int64_t frame, __half* params_gpu, size_t n, u
 		else
 		parallel_for_gpu(m_stream.get(), n, [local_params=m_network->params(), params=params_gpu, m, frame, grid_frame=this_grid_frame.data()] __device__ (size_t i) {
 			if (i < m) {
-				if (local_params[i] + (network_precision_t)params[i] == local_params[i]) return;
+				if (grid_frame[i]>=0 && (float)params[i] == 0) return;
 				local_params[i] += (network_precision_t)params[i];
 				grid_frame[i] = frame;
 			}
