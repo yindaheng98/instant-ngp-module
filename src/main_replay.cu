@@ -205,6 +205,7 @@ int main_func(const std::vector<std::string>& arguments) {
 	}
 
 	testbed.m_train = false;
+	testbed.m_dynamic_res = false;
 
 	testbed.init_window(width_flag ? get(width_flag) : 1920, height_flag ? get(height_flag) : 1080);
 
