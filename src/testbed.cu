@@ -4050,6 +4050,8 @@ void Testbed::sync_grid_frame() { // yin: for ngp flow
 	parallel_for_gpu(m_stream.get(), m, [this_grid_frame=this_grid_frame.data(), last_grid_frame=last_grid_frame.data()] __device__ (size_t i) {
 		last_grid_frame[i] = this_grid_frame[i];
 	});
+	if (current_residual.size() < m) current_residual.resize(m);
+	current_residual.memset(0);
 }
 
 void Testbed::set_params(__half* params_gpu, size_t n, uint32_t* index_gpu) { // yin: for ngp flow
@@ -4218,11 +4220,24 @@ bool Testbed::diff_frame_dequeue() { // yin: for ngp flow
 	return true;
 }
 
+void Testbed::record_current_residual(__half* params_gpu, size_t n, uint32_t* index_gpu) { // yin: for ngp flow
+	size_t m = n_params();
+	if (index_gpu != nullptr)
+	parallel_for_gpu(m_stream.get(), n, [local_params=current_residual.data(), params=params_gpu, index=index_gpu, m] __device__ (size_t i) {
+		if (index[i] < m) local_params[index[i]] = (network_precision_t)params[i];
+	});
+	else
+	parallel_for_gpu(m_stream.get(), n, [local_params=current_residual.data(), params=params_gpu, m] __device__ (size_t i) {
+		if (i < m) local_params[i] = (network_precision_t)params[i];
+	});
+}
+
 bool Testbed::diff_frame_dequeue_setframe(int64_t frame) { // yin: for ngp flow
 	sync_grid_frame();
 	if (diff_frame_queue.empty()) return false;
 	QueueObj obj = diff_frame_queue.front();
 	add_params_setframe(frame, obj.params, obj.params_size, obj.params_index);
+	record_current_residual(obj.params, obj.params_size, obj.params_index);
 	set_density_grid(obj.density_grid, obj.density_grid_size, obj.density_grid_index, obj.density_grid_bitfield, obj.density_grid_bitfield_size);
 	diff_frame_queue.pop();
 	FreeQueueObj(obj);

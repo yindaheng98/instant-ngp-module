@@ -78,7 +78,7 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     uint64_t* counter_gpu;
     CUDA_CHECK_THROW(cudaMalloc(&counter_gpu, sizeof(uint64_t) * K));
     CUDA_CHECK_THROW(cudaMemset(counter_gpu, 0, sizeof(uint64_t) * K));
-    parallel_for_gpu(m_stream.get(), grid_hit->size(), [grid_hit=grid_hit->data(), counter_gpu=counter_gpu, K=K] __device__ (size_t i) {
+    parallel_for_gpu(m_stream.get(), grid_hit->size(), [grid_hit=grid_hit->data(), counter_gpu, K] __device__ (size_t i) {
         for (uint64_t k=0;k<K;k++)
         if (grid_hit[i] > k) atomicAdd(counter_gpu + k, 1);
     });
@@ -134,6 +134,18 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
         last_grid_hit[i] = grid_hit[i] > 0;
         accu_grid_hit[i] = grid_hit[i] > 0 || accu_grid_hit[i];
     });
+
+    if (current_residual.size() != n_params()) return;
+    CUDA_CHECK_THROW(cudaMalloc(&counter_gpu, sizeof(uint64_t) * K));
+    CUDA_CHECK_THROW(cudaMemset(counter_gpu, 0, sizeof(uint64_t) * K));
+    parallel_for_gpu(m_stream.get(), grid_hit->size(), [grid_hit=grid_hit->data(), residual=current_residual.data(), counter_gpu, K] __device__ (size_t i) {
+        for (uint64_t k=0;k<K;k++)
+        if (grid_hit[i] > k && (float)residual[i] > 0) atomicAdd(counter_gpu + k, 1);
+    });
+    CUDA_CHECK_THROW(cudaMemcpyAsync(counter_cpu, counter_gpu, sizeof(uint64_t) * K, cudaMemcpyDeviceToHost, m_stream.get()));
+    CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
+    CUDA_CHECK_THROW(cudaFree(counter_gpu));
+    tlog::info() << "nonzero " << counter_cpu[0] << '/' << grid_hit->size();
 }
 
 }
