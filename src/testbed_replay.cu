@@ -74,6 +74,19 @@ GPUMemory<bool> accu_grid_hit;
 GPUMemory<bool> last_grid_hit;
 GPUMemory<__half> the_params;
 GPUMemory<__half> the_residuals;
+int64_t the_frame = 0;
+template< typename... Args >
+std::string string_sprintf( const char* format, Args... args ) {
+  int length = std::snprintf( nullptr, 0, format, args... );
+  assert( length >= 0 );
+
+  char* buf = new char[length + 1];
+  std::snprintf( buf, length + 1, format, args... );
+
+  std::string str( buf );
+  delete[] buf;
+  return str;
+}
 
 void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     const uint64_t K = 64;
@@ -175,6 +188,16 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
     CUDA_CHECK_THROW(cudaFree(counter_gpu));
     tlog::info() << "nonzero inter " << int_counter_cpu[0] << " intra " << int_counter_cpu[1] << " total residual " << int_counter_cpu[2];
+
+    json data;
+    data["intra"] = the_params;
+    data["inter"] = the_residuals;
+    fs::path path = native_string(string_sprintf(grid_hit_path.c_str(), the_frame));
+    fs::create_directories(path.parent_path());
+    std::ofstream f{path.str(), std::ios::out | std::ios::binary};
+    zstr::ostream zf{f, zstr::default_buff_size, Z_BEST_COMPRESSION};
+    json::to_bson(data, zf);
+    the_frame++;
 }
 
 }

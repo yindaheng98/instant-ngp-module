@@ -487,6 +487,7 @@ public:
 	int64_t max_read_frame_thread_n = 16; // yin: for ngp flow
 	bool get_grid_hit = false; // yin: for ngp flow
 	bool get_grid_hit_only = false; // yin: for ngp flow
+	std::string grid_hit_path; // yin: for ngp flow
 	void do_grid_hit(GPUMemory<uint32_t>* grid_hit); // yin: for ngp flow
 	void sync_grid_frame(); // yin: for ngp flow
 private:

@@ -136,7 +136,7 @@ int main_func(const std::vector<std::string>& arguments) {
 		{"savecam"},
 	};
 
-	Flag gethit_flag{
+	ValueFlag<string> gethit_flag{
 		parser,
 		"GETHIT",
 		"Get grid hit record.",
@@ -198,6 +198,7 @@ int main_func(const std::vector<std::string>& arguments) {
 
 	if (gethit_flag) {
 		testbed.get_grid_hit = true;
+		testbed.grid_hit_path = get(gethit_flag);
 	}
 
 	if (onlyhit_flag) {
