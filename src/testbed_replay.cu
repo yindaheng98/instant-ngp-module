@@ -88,7 +88,7 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     CUDA_CHECK_THROW(cudaFree(counter_gpu));
     // for (uint64_t k=0;k<K;k++)
     // tlog::info() << grid_hit->data() << ' ' << counter_cpu[k] << '/' << grid_hit->size();
-    tlog::info() << grid_hit->data() << ' ' << counter_cpu[0] << '/' << grid_hit->size();
+    tlog::info() << "total " << counter_cpu[0] << '/' << grid_hit->size();
 
     if (accu_grid_hit.size() != grid_hit->size()) {
         accu_grid_hit.resize(grid_hit->size());
@@ -109,7 +109,7 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     CUDA_CHECK_THROW(cudaMemcpyAsync(counter_cpu, counter_gpu, sizeof(uint64_t) * 2, cudaMemcpyDeviceToHost, m_stream.get()));
     CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
     CUDA_CHECK_THROW(cudaFree(counter_gpu));
-    tlog::info() << grid_hit->data() << ' ' << counter_cpu[0] << " not overlap accu" << ' ' << counter_cpu[1] << " not overlap last";
+    tlog::info() << "static not overlap accu " << counter_cpu[0] << " not overlap last " << counter_cpu[1];
 
     if (last_grid_frame.size() != n_params() || this_grid_frame.size() != n_params()) return;
     size_t offset = n_params() - grid_hit->size();
@@ -128,7 +128,7 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     CUDA_CHECK_THROW(cudaMemcpyAsync(int_counter_cpu, counter_gpu, sizeof(uint64_t) * 3, cudaMemcpyDeviceToHost, m_stream.get()));
     CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
     CUDA_CHECK_THROW(cudaFree(counter_gpu));
-    tlog::info() << "inter " << int_counter_cpu[0] << " intra " << int_counter_cpu[1] << " equal " << int_counter_cpu[2];
+    tlog::info() << "dynamic inter " << int_counter_cpu[0] << " intra " << int_counter_cpu[1] << " equal " << int_counter_cpu[2];
 
     parallel_for_gpu(m_stream.get(), grid_hit->size(), [grid_hit=grid_hit->data(), last_grid_hit=last_grid_hit.data(), accu_grid_hit=accu_grid_hit.data()] __device__ (size_t i) {
         last_grid_hit[i] = grid_hit[i] > 0;
