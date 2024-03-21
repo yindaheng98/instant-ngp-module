@@ -155,7 +155,7 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
         if (the_last_grid_frame[i] == this_grid_frame[i]) {
             atomicAdd(equal_counter_gpu, 1);
         }
-        else if (the_last_grid_frame[i] == last_grid_frame[i] && last_grid_frame[i] != this_grid_frame[i]) {
+        else if (the_last_grid_frame[i] == last_grid_frame[i]) {
             atomicAdd(inter_counter_gpu, 1);
             the_residuals[i] = current_residual[i];
         }
@@ -176,27 +176,25 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
         accu_grid_hit[i] = grid_hit[i] > 0 || accu_grid_hit[i];
     });
 
-    CUDA_CHECK_THROW(cudaMalloc(&counter_gpu, sizeof(uint64_t) * 3));
-    CUDA_CHECK_THROW(cudaMemset(counter_gpu, 0, sizeof(uint64_t) * 3));
+    CUDA_CHECK_THROW(cudaMalloc(&counter_gpu, sizeof(uint64_t) * 2));
+    CUDA_CHECK_THROW(cudaMemset(counter_gpu, 0, sizeof(uint64_t) * 2));
     inter_counter_gpu = counter_gpu;
     intra_counter_gpu = counter_gpu + 1;
-	uint64_t* total_counter_gpu = counter_gpu + 2;
     parallel_for_gpu(m_stream.get(), grid_hit->size(), 
     [
         grid_hit=grid_hit->data(),
         residual=current_residual.data() + offset,
         the_params=the_params.data() + offset,
         the_residuals=the_residuals.data() + offset,
-        inter_counter_gpu, intra_counter_gpu, total_counter_gpu, K
+        inter_counter_gpu, intra_counter_gpu, K
     ] __device__ (size_t i) {
-        if (grid_hit[i] > 0 && (float)residual[i] != 0) atomicAdd(total_counter_gpu, 1);
         if ((float)the_params[i] != 0) atomicAdd(intra_counter_gpu, 1);
         if ((float)the_residuals[i] != 0) atomicAdd(inter_counter_gpu, 1);
     });
-    CUDA_CHECK_THROW(cudaMemcpyAsync(int_counter_cpu, counter_gpu, sizeof(uint64_t) * 3, cudaMemcpyDeviceToHost, m_stream.get()));
+    CUDA_CHECK_THROW(cudaMemcpyAsync(int_counter_cpu, counter_gpu, sizeof(uint64_t) * 2, cudaMemcpyDeviceToHost, m_stream.get()));
     CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
     CUDA_CHECK_THROW(cudaFree(counter_gpu));
-    tlog::info() << "nonzero inter " << int_counter_cpu[0] << " intra " << int_counter_cpu[1] << " total residual " << int_counter_cpu[2];
+    tlog::info() << "nonzero inter " << int_counter_cpu[0] << " intra " << int_counter_cpu[1];
 
     json data;
     data["intra"] = the_params;
