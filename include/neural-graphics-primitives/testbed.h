@@ -484,7 +484,7 @@ public:
 	json dump_camera(); // yin: for ngp flow
 	json dump_views(); // yin: for ngp flow
 	void load_camera(json camera); // yin: for ngp flow
-	int64_t max_read_frame_thread_n = 16; // yin: for ngp flow
+	int64_t max_read_frame_thread_n = 8; // yin: for ngp flow
 	bool get_grid_hit = false; // yin: for ngp flow
 	bool get_grid_hit_only = false; // yin: for ngp flow
 	std::string grid_hit_path; // yin: for ngp flow

@@ -130,9 +130,9 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     if (last_grid_frame.size() != n_params() || this_grid_frame.size() != n_params() || current_residual.size() != n_params()) return;
     if (the_params.size() != n_params()) the_params.resize(n_params()); the_params.memset(0);
     if (the_residuals.size() != n_params()) the_residuals.resize(n_params()); the_residuals.memset(0);
-    if (the_last_grid_frame.size() != grid_hit->size()) {
-        the_last_grid_frame.resize(grid_hit->size());
-        the_last_grid_frame.memset(-128);
+    if (the_last_grid_frame.size() != n_params()) {
+        the_last_grid_frame.resize(n_params());
+        the_last_grid_frame.memset(-256);
     }
     size_t offset = n_params() - grid_hit->size();
     CUDA_CHECK_THROW(cudaMalloc(&counter_gpu, sizeof(uint64_t) * 3));
@@ -146,7 +146,7 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
         last_grid_frame=last_grid_frame.data() + offset,
         this_grid_frame=this_grid_frame.data() + offset,
         current_residual=current_residual.data() + offset,
-        the_last_grid_frame=the_last_grid_frame.data(),
+        the_last_grid_frame=the_last_grid_frame.data() + offset,
         the_params=the_params.data() + offset,
         the_residuals=the_residuals.data() + offset,
         inter_counter_gpu, intra_counter_gpu, equal_counter_gpu
