@@ -33,6 +33,8 @@
 #include <tiny-cuda-nn/optimizer.h>
 #include <tiny-cuda-nn/trainer.h>
 
+#include <thrust/partition.h>
+
 #include <json/json.hpp>
 
 #include <filesystem/directory.h>
@@ -91,22 +93,18 @@ std::string string_sprintf( const char* format, Args... args ) {
 }
 
 void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
-    const uint64_t K = 64;
     uint64_t* counter_gpu;
+    uint64_t counter_cpu[32];
 
     // 统计：被调用超过k次的参数数量
-    CUDA_CHECK_THROW(cudaMalloc(&counter_gpu, sizeof(uint64_t) * K));
-    CUDA_CHECK_THROW(cudaMemset(counter_gpu, 0, sizeof(uint64_t) * K));
-    parallel_for_gpu(m_stream.get(), grid_hit->size(), [grid_hit=grid_hit->data(), counter_gpu, K] __device__ (size_t i) {
-        for (uint64_t k=0;k<K;k++)
-        if (grid_hit[i] > k) atomicAdd(counter_gpu + k, 1);
+    CUDA_CHECK_THROW(cudaMalloc(&counter_gpu, sizeof(uint64_t)));
+    CUDA_CHECK_THROW(cudaMemset(counter_gpu, 0, sizeof(uint64_t)));
+    parallel_for_gpu(m_stream.get(), grid_hit->size(), [grid_hit=grid_hit->data(), counter_gpu] __device__ (size_t i) {
+        if (grid_hit[i] > 0) atomicAdd(counter_gpu, 1);
     });
-    uint64_t counter_cpu[K];
-    CUDA_CHECK_THROW(cudaMemcpyAsync(counter_cpu, counter_gpu, sizeof(uint64_t) * K, cudaMemcpyDeviceToHost, m_stream.get()));
+    CUDA_CHECK_THROW(cudaMemcpyAsync(counter_cpu, counter_gpu, sizeof(uint64_t), cudaMemcpyDeviceToHost, m_stream.get()));
     CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
     CUDA_CHECK_THROW(cudaFree(counter_gpu));
-    // for (uint64_t k=0;k<K;k++)
-    // tlog::info() << grid_hit->data() << ' ' << counter_cpu[k] << '/' << grid_hit->size();
     tlog::info() << "total " << counter_cpu[0] << '/' << grid_hit->size(); // 输出counter_cpu[0]是被调用过至少一次的参数数量
 
     if (accu_grid_hit.size() != grid_hit->size()) {
