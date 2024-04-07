@@ -493,7 +493,6 @@ public:
 private:
 	GPUMemory<int64_t> last_grid_frame; // yin: for ngp flow
 	GPUMemory<int64_t> this_grid_frame; // yin: for ngp flow
-	GPUMemory<__half> current_residual; // yin: for ngp flow
 	GPUMemory<bool>* grid_hit; // yin: for ngp flow
 	struct QueueObj { // yin: for ngp flow
 		__half* params;
@@ -521,7 +520,6 @@ private:
 public:
 	void set_params(__half* params_gpu, size_t n, uint32_t* index_gpu = nullptr); // yin: for ngp flow
 	void add_params(__half* params_gpu, size_t n, uint32_t* index_gpu = nullptr); // yin: for ngp flow
-	void record_current_residual(__half* params_gpu, size_t n, uint32_t* index_gpu = nullptr); // yin: for ngp flow
 	void set_params_setframe(int64_t frame, __half* params_gpu, size_t n, uint32_t* index_gpu = nullptr); // yin: for ngp flow
 	void add_params_setframe(int64_t frame, __half* params_gpu, size_t n, uint32_t* index_gpu = nullptr); // yin: for ngp flow
 	void set_density_grid(__half* density_grid_gpu, size_t n, uint32_t* index_gpu = nullptr, uint8_t* bitfield_gpu = nullptr, size_t bit_n = 0); // yin: for ngp flow

@@ -68,13 +68,14 @@
 
 
 using namespace std::literals::chrono_literals;
+#define MIN_RESIDUAL 0.01
 
 namespace ngp {
 GPUMemory<bool> accu_grid_hit;
 GPUMemory<bool> last_grid_hit;
-GPUMemory<int64_t> the_last_grid_frame;
-GPUMemory<__half> the_params;
-GPUMemory<__half> the_residuals;
+GPUMemory<network_precision_t> last_params;
+GPUMemory<network_precision_t> inter_params;
+GPUMemory<network_precision_t> intra_params;
 int64_t the_frame = 0;
 template< typename... Args >
 std::string string_sprintf( const char* format, Args... args ) {
@@ -92,6 +93,8 @@ std::string string_sprintf( const char* format, Args... args ) {
 void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     const uint64_t K = 64;
     uint64_t* counter_gpu;
+
+    // 统计：被调用超过k次的参数数量
     CUDA_CHECK_THROW(cudaMalloc(&counter_gpu, sizeof(uint64_t) * K));
     CUDA_CHECK_THROW(cudaMemset(counter_gpu, 0, sizeof(uint64_t) * K));
     parallel_for_gpu(m_stream.get(), grid_hit->size(), [grid_hit=grid_hit->data(), counter_gpu, K] __device__ (size_t i) {
@@ -104,7 +107,7 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     CUDA_CHECK_THROW(cudaFree(counter_gpu));
     // for (uint64_t k=0;k<K;k++)
     // tlog::info() << grid_hit->data() << ' ' << counter_cpu[k] << '/' << grid_hit->size();
-    tlog::info() << "total " << counter_cpu[0] << '/' << grid_hit->size();
+    tlog::info() << "total " << counter_cpu[0] << '/' << grid_hit->size(); // 输出counter_cpu[0]是被调用过至少一次的参数数量
 
     if (accu_grid_hit.size() != grid_hit->size()) {
         accu_grid_hit.resize(grid_hit->size());
@@ -114,6 +117,7 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
         last_grid_hit.resize(grid_hit->size());
         last_grid_hit.memset(0);
     }
+    // 统计：当前视角和上一个视角有多少参数相交；当前视角和之前所有视角有多少参数相交
     CUDA_CHECK_THROW(cudaMalloc(&counter_gpu, sizeof(uint64_t) * 2));
     CUDA_CHECK_THROW(cudaMemset(counter_gpu, 0, sizeof(uint64_t) * 2));
     uint64_t* accu_counter_gpu = counter_gpu;
@@ -127,14 +131,13 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     CUDA_CHECK_THROW(cudaFree(counter_gpu));
     tlog::info() << "static not overlap accu " << counter_cpu[0] << " not overlap last " << counter_cpu[1];
 
-    if (last_grid_frame.size() != n_params() || this_grid_frame.size() != n_params() || current_residual.size() != n_params()) return;
-    if (the_params.size() != n_params()) the_params.resize(n_params()); the_params.memset(0);
-    if (the_residuals.size() != n_params()) the_residuals.resize(n_params()); the_residuals.memset(0);
-    if (the_last_grid_frame.size() != n_params()) {
-        the_last_grid_frame.resize(n_params());
-        the_last_grid_frame.memset(-256);
-    }
+    if (last_params.size() != n_params()) { last_params.resize(n_params()); last_params.memset(0); }
+    if (inter_params.size() != n_params()) inter_params.resize(n_params()); inter_params.memset(0);
+    if (intra_params.size() != n_params()) intra_params.resize(n_params()); intra_params.memset(0);
+    // 核心过程：过滤掉小残差
+    // 统计：需要传完整参数的参数数量，过滤掉小残差后的残差数量和不变的参数数量
     size_t offset = n_params() - grid_hit->size();
+    CUDA_CHECK_THROW(cudaMemcpy(last_params.data(), m_network->params(), sizeof(network_precision_t) * offset, cudaMemcpyDeviceToDevice)); // MLP参数不会变
     CUDA_CHECK_THROW(cudaMalloc(&counter_gpu, sizeof(uint64_t) * 3));
     CUDA_CHECK_THROW(cudaMemset(counter_gpu, 0, sizeof(uint64_t) * 3));
     uint64_t* inter_counter_gpu = counter_gpu;
@@ -143,27 +146,27 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     parallel_for_gpu(m_stream.get(), grid_hit->size(),
     [
         grid_hit=grid_hit->data(),
-        last_grid_frame=last_grid_frame.data() + offset,
-        this_grid_frame=this_grid_frame.data() + offset,
-        current_residual=current_residual.data() + offset,
-        the_last_grid_frame=the_last_grid_frame.data() + offset,
-        the_params=the_params.data() + offset,
-        the_residuals=the_residuals.data() + offset,
+        accu_grid_hit=accu_grid_hit.data(),
+        params=m_network->params() + offset,
+        last_params=last_params.data() + offset,
+        inter_params=inter_params.data() + offset,
+        intra_params=intra_params.data() + offset,
         inter_counter_gpu, intra_counter_gpu, equal_counter_gpu
     ] __device__ (size_t i) {
         if (grid_hit[i] <= 0) return;
-        if (the_last_grid_frame[i] == this_grid_frame[i]) {
-            atomicAdd(equal_counter_gpu, 1);
+        if (!accu_grid_hit[i]) {
+            atomicAdd(intra_counter_gpu, 1);
+            intra_params[i] = params[i];
+            return;
         }
-        else if (the_last_grid_frame[i] == last_grid_frame[i]) {
+        network_precision_t residual = params[i] - last_params[i];
+        if (residual < (network_precision_t)MIN_RESIDUAL && residual > -(network_precision_t)MIN_RESIDUAL) {
             atomicAdd(inter_counter_gpu, 1);
-            the_residuals[i] = current_residual[i];
+            inter_params[i] = residual;
         }
 		else {
-            atomicAdd(intra_counter_gpu, 1);
-            the_params[i] = this_grid_frame[i];
+            atomicAdd(equal_counter_gpu, 1);
         }
-        the_last_grid_frame[i] = this_grid_frame[i];
     });
     uint64_t int_counter_cpu[3];
     CUDA_CHECK_THROW(cudaMemcpyAsync(int_counter_cpu, counter_gpu, sizeof(uint64_t) * 3, cudaMemcpyDeviceToHost, m_stream.get()));
@@ -176,35 +179,36 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
         accu_grid_hit[i] = grid_hit[i] > 0 || accu_grid_hit[i];
     });
 
-    CUDA_CHECK_THROW(cudaMalloc(&counter_gpu, sizeof(uint64_t) * 2));
-    CUDA_CHECK_THROW(cudaMemset(counter_gpu, 0, sizeof(uint64_t) * 2));
-    inter_counter_gpu = counter_gpu;
-    intra_counter_gpu = counter_gpu + 1;
-    parallel_for_gpu(m_stream.get(), grid_hit->size(), 
-    [
-        grid_hit=grid_hit->data(),
-        residual=current_residual.data() + offset,
-        the_params=the_params.data() + offset,
-        the_residuals=the_residuals.data() + offset,
-        inter_counter_gpu, intra_counter_gpu, K
-    ] __device__ (size_t i) {
-        if ((float)the_params[i] != 0) atomicAdd(intra_counter_gpu, 1);
-        if ((float)the_residuals[i] != 0) atomicAdd(inter_counter_gpu, 1);
-    });
-    CUDA_CHECK_THROW(cudaMemcpyAsync(int_counter_cpu, counter_gpu, sizeof(uint64_t) * 2, cudaMemcpyDeviceToHost, m_stream.get()));
-    CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
-    CUDA_CHECK_THROW(cudaFree(counter_gpu));
-    tlog::info() << "nonzero inter " << int_counter_cpu[0] << " intra " << int_counter_cpu[1];
+    // // 核心过程：模拟残差加
+    // CUDA_CHECK_THROW(cudaMalloc(&counter_gpu, sizeof(uint64_t) * 2));
+    // CUDA_CHECK_THROW(cudaMemset(counter_gpu, 0, sizeof(uint64_t) * 2));
+    // inter_counter_gpu = counter_gpu;
+    // intra_counter_gpu = counter_gpu + 1;
+    // parallel_for_gpu(m_stream.get(), grid_hit->size(), 
+    // [
+    //     grid_hit=grid_hit->data(),
+    //     residual=current_residual.data() + offset,
+    //     the_params=the_params.data() + offset,
+    //     the_residuals=the_residuals.data() + offset,
+    //     inter_counter_gpu, intra_counter_gpu, K
+    // ] __device__ (size_t i) {
+    //     if ((float)the_params[i] != 0) atomicAdd(intra_counter_gpu, 1);
+    //     if ((float)the_residuals[i] != 0) atomicAdd(inter_counter_gpu, 1);
+    // });
+    // CUDA_CHECK_THROW(cudaMemcpyAsync(int_counter_cpu, counter_gpu, sizeof(uint64_t) * 2, cudaMemcpyDeviceToHost, m_stream.get()));
+    // CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
+    // CUDA_CHECK_THROW(cudaFree(counter_gpu));
+    // tlog::info() << "nonzero inter " << int_counter_cpu[0] << " intra " << int_counter_cpu[1];
 
-    json data;
-    data["intra"] = the_params;
-    data["inter"] = the_residuals;
-    fs::path path = native_string(string_sprintf(grid_hit_path.c_str(), the_frame));
-    fs::create_directories(path.parent_path());
-    std::ofstream f{path.str(), std::ios::out | std::ios::binary};
-    zstr::ostream zf{f, zstr::default_buff_size, Z_BEST_COMPRESSION};
-    json::to_bson(data, zf);
-    the_frame++;
+    // json data;
+    // data["intra"] = the_params;
+    // data["inter"] = the_residuals;
+    // fs::path path = native_string(string_sprintf(grid_hit_path.c_str(), the_frame));
+    // fs::create_directories(path.parent_path());
+    // std::ofstream f{path.str(), std::ios::out | std::ios::binary};
+    // zstr::ostream zf{f, zstr::default_buff_size, Z_BEST_COMPRESSION};
+    // json::to_bson(data, zf);
+    // the_frame++;
 }
 
 }
