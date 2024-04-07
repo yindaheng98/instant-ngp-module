@@ -181,21 +181,54 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     uint64_t int_counter_cpu[3];
     CUDA_CHECK_THROW(cudaMemcpyAsync(int_counter_cpu, counter_gpu, sizeof(uint64_t) * 3, cudaMemcpyDeviceToHost, m_stream.get()));
     CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
-    CUDA_CHECK_THROW(cudaFree(counter_gpu));
     tlog::info() << "dynamic inter " << int_counter_cpu[0] << " intra " << int_counter_cpu[1] << " equal " << int_counter_cpu[2];
 
-    parallel_for_gpu(m_stream.get(), grid_hit->size(), [grid_hit=grid_hit->data(), last_grid_hit=last_grid_hit.data(), accu_grid_hit=accu_grid_hit.data()] __device__ (size_t i) {
-        last_grid_hit[i] = grid_hit[i] > 0;
-        accu_grid_hit[i] = grid_hit[i] > 0 || accu_grid_hit[i];
-    });
-
-    // 核心过程：k th 残差过滤
+    // 核心过程：top k
     uint64_t inter_counter_cpu = int_counter_cpu[0];
     parallel_for_gpu(m_stream.get(), inter_counter_cpu, [input=residual_topk_i.data(), output=residual_topk_o.data()] __device__ (size_t i) {
         output[i] = (input[i]>=(network_precision_t)0)?input[i]:-input[i];
     });
     network_precision_t top = topk(residual_topk_o.data(), inter_counter_cpu, fminf(M, int_counter_cpu[0]));
     tlog::info() << "top " << fminf(M, int_counter_cpu[0]) << " = " << (float)top;
+
+    if (inter_params.size() != n_params()) inter_params.resize(n_params()); inter_params.memset(0);
+    CUDA_CHECK_THROW(cudaMemset(counter_gpu, 0, sizeof(uint64_t) * 3));
+    // 核心过程：k th 残差过滤
+    // 统计：需要传完整参数的参数数量，过滤掉残差后的残差数量和不变的参数数量
+    parallel_for_gpu(m_stream.get(), grid_hit->size(),
+    [
+        grid_hit=grid_hit->data(),
+        accu_grid_hit=accu_grid_hit.data(),
+        params=m_network->params() + offset,
+        last_params=last_params.data() + offset,
+        inter_params=inter_params.data() + offset,
+        intra_params=intra_params.data() + offset,
+        top, inter_counter_gpu, intra_counter_gpu, equal_counter_gpu
+    ] __device__ (size_t i) {
+        if (grid_hit[i] <= 0) return;
+        if (!accu_grid_hit[i]) {
+            atomicAdd(intra_counter_gpu, 1);
+            return;
+        }
+        network_precision_t residual = params[i] - last_params[i];
+        if (residual > top || residual < -top) {
+            inter_params[i] = residual;
+            atomicAdd(inter_counter_gpu, 1);
+        }
+		else {
+            atomicAdd(equal_counter_gpu, 1);
+        }
+    });
+    CUDA_CHECK_THROW(cudaMemcpyAsync(int_counter_cpu, counter_gpu, sizeof(uint64_t) * 3, cudaMemcpyDeviceToHost, m_stream.get()));
+    CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
+    CUDA_CHECK_THROW(cudaFree(counter_gpu));
+    tlog::info() << "filterd inter " << int_counter_cpu[0] << " intra " << int_counter_cpu[1] << " equal " << int_counter_cpu[2];
+
+    // 核心过程：更新hit grid
+    parallel_for_gpu(m_stream.get(), grid_hit->size(), [grid_hit=grid_hit->data(), last_grid_hit=last_grid_hit.data(), accu_grid_hit=accu_grid_hit.data()] __device__ (size_t i) {
+        last_grid_hit[i] = grid_hit[i] > 0;
+        accu_grid_hit[i] = grid_hit[i] > 0 || accu_grid_hit[i];
+    });
 
     // // 核心过程：模拟残差加
     // CUDA_CHECK_THROW(cudaMalloc(&counter_gpu, sizeof(uint64_t) * 2));
