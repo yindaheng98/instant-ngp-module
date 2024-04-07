@@ -233,43 +233,31 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     // 核心过程：模拟残差加
     parallel_for_gpu(m_stream.get(), grid_hit->size(),
     [
+        params=m_network->params() + offset,
         last_params=last_params.data() + offset,
         inter_params=inter_params.data() + offset,
         intra_params=intra_params.data() + offset
     ] __device__ (size_t i) {
         if (intra_params[i] != (network_precision_t)0) last_params[i] = intra_params[i];
         else if (inter_params[i] != (network_precision_t)0) last_params[i] += inter_params[i];
+        params[i] = last_params[i];
     });
 
-    // CUDA_CHECK_THROW(cudaMalloc(&counter_gpu, sizeof(uint64_t) * 2));
-    // CUDA_CHECK_THROW(cudaMemset(counter_gpu, 0, sizeof(uint64_t) * 2));
-    // inter_counter_gpu = counter_gpu;
-    // intra_counter_gpu = counter_gpu + 1;
-    // parallel_for_gpu(m_stream.get(), grid_hit->size(), 
-    // [
-    //     grid_hit=grid_hit->data(),
-    //     residual=current_residual.data() + offset,
-    //     the_params=the_params.data() + offset,
-    //     the_residuals=the_residuals.data() + offset,
-    //     inter_counter_gpu, intra_counter_gpu, K
-    // ] __device__ (size_t i) {
-    //     if ((float)the_params[i] != 0) atomicAdd(intra_counter_gpu, 1);
-    //     if ((float)the_residuals[i] != 0) atomicAdd(inter_counter_gpu, 1);
-    // });
-    // CUDA_CHECK_THROW(cudaMemcpyAsync(int_counter_cpu, counter_gpu, sizeof(uint64_t) * 2, cudaMemcpyDeviceToHost, m_stream.get()));
-    // CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
-    // CUDA_CHECK_THROW(cudaFree(counter_gpu));
-    // tlog::info() << "nonzero inter " << int_counter_cpu[0] << " intra " << int_counter_cpu[1];
+    auto& snapshot = grid_hit_json;
+    snapshot["params"] = last_params.size();
+    snapshot["params_size"] = last_params;
+    snapshot["density_grid_bitfield"] = m_nerf.density_grid_bitfield;
+    snapshot["density_grid_bitfield_size"] = m_nerf.density_grid_bitfield.size();
+    snapshot["density_grid_size"] = NERF_GRIDSIZE();
+    GPUMemory<__half> density_grid_fp16(m_nerf.density_grid.size());
+    parallel_for_gpu(density_grid_fp16.size(), [density_grid=m_nerf.density_grid.data(), density_grid_fp16=density_grid_fp16.data()] __device__ (size_t i) {
+        density_grid_fp16[i] = (__half)density_grid[i];
+    });
 
-    // json data;
-    // data["intra"] = the_params;
-    // data["inter"] = the_residuals;
-    // fs::path path = native_string(string_sprintf(grid_hit_path.c_str(), the_frame));
-    // fs::create_directories(path.parent_path());
-    // std::ofstream f{path.str(), std::ios::out | std::ios::binary};
-    // zstr::ostream zf{f, zstr::default_buff_size, Z_BEST_COMPRESSION};
-    // json::to_bson(data, zf);
-    // the_frame++;
+    fs::path save_path = native_string(string_sprintf(grid_hit_path.c_str(), the_frame));
+    fs::create_directories(save_path.parent_path());
+    save_grid_hit(save_path);
+    the_frame++;
 }
 
 }

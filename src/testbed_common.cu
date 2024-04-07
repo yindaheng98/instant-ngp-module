@@ -777,6 +777,20 @@ void Testbed::save_snapshot(const fs::path& path, bool include_optimizer_state, 
 	tlog::success() << "Saved snapshot '" << path.str() << "'";
 }
 
+void Testbed::save_grid_hit(const fs::path& path, bool compress) {
+	grid_hit_json_path = path;
+	std::ofstream f{native_string(grid_hit_json_path), std::ios::out | std::ios::binary};
+	if (equals_case_insensitive(grid_hit_json_path.extension(), "ingp")) {
+		// zstr::ofstream applies zlib compression.
+		zstr::ostream zf{f, zstr::default_buff_size, compress ? Z_DEFAULT_COMPRESSION : Z_NO_COMPRESSION};
+		json::to_msgpack(grid_hit_json, zf);
+	} else if (equals_case_insensitive(m_network_config_path.extension(), "bson")) {
+		json::to_bson(grid_hit_json, f);
+	} else {
+		json::to_msgpack(grid_hit_json, f);
+	}
+}
+
 void Testbed::load_snapshot(nlohmann::json config) {
 	const auto& snapshot = config["snapshot"];
 	if (snapshot.value("version", 0) < SNAPSHOT_FORMAT_VERSION) {

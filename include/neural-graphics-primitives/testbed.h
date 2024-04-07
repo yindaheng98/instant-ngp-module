@@ -488,6 +488,9 @@ public:
 	bool get_grid_hit = false; // yin: for ngp flow
 	bool get_grid_hit_only = false; // yin: for ngp flow
 	std::string grid_hit_path; // yin: for ngp flow
+	nlohmann::json grid_hit_json; // yin: for ngp flow
+	fs::path  grid_hit_json_path; // yin: for ngp flow
+	void save_grid_hit(const fs::path& path, bool compress = true); // yin: for ngp flow
 	void do_grid_hit(GPUMemory<uint32_t>* grid_hit); // yin: for ngp flow
 	void sync_grid_frame(); // yin: for ngp flow
 private:
