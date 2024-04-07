@@ -244,15 +244,16 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     });
 
     auto& snapshot = grid_hit_json;
-    snapshot["params"] = last_params.size();
-    snapshot["params_size"] = last_params;
+    snapshot["params"] = last_params;
+    snapshot["params_size"] = last_params.size();
     snapshot["density_grid_bitfield"] = m_nerf.density_grid_bitfield;
     snapshot["density_grid_bitfield_size"] = m_nerf.density_grid_bitfield.size();
-    snapshot["density_grid_size"] = NERF_GRIDSIZE();
     GPUMemory<__half> density_grid_fp16(m_nerf.density_grid.size());
     parallel_for_gpu(density_grid_fp16.size(), [density_grid=m_nerf.density_grid.data(), density_grid_fp16=density_grid_fp16.data()] __device__ (size_t i) {
         density_grid_fp16[i] = (__half)density_grid[i];
     });
+    snapshot["density_grid"] = density_grid_fp16;
+    snapshot["density_grid_size"] = m_nerf.density_grid.size();
 
     fs::path save_path = native_string(string_sprintf(grid_hit_path.c_str(), the_frame));
     fs::create_directories(save_path.parent_path());
