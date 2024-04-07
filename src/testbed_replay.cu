@@ -78,6 +78,9 @@ GPUMemory<bool> last_grid_hit;
 GPUMemory<network_precision_t> last_params;
 GPUMemory<network_precision_t> inter_params;
 GPUMemory<network_precision_t> intra_params;
+GPUMemory<network_precision_t> residual_topk_i;
+GPUMemory<network_precision_t> residual_topk_o;
+unsigned int M = 10000;
 int64_t the_frame = 0;
 template< typename... Args >
 std::string string_sprintf( const char* format, Args... args ) {
@@ -90,6 +93,12 @@ std::string string_sprintf( const char* format, Args... args ) {
   std::string str( buf );
   delete[] buf;
   return str;
+}
+network_precision_t topk(network_precision_t* input, int length, int k) {
+    thrust::sort(thrust::device, input, input+length, thrust::greater<network_precision_t>());
+    network_precision_t top;
+    CUDA_CHECK_THROW(cudaMemcpy(&top, input+k, sizeof(network_precision_t), cudaMemcpyDeviceToHost));
+    return top;
 }
 
 void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
@@ -132,6 +141,8 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     if (last_params.size() != n_params()) { last_params.resize(n_params()); last_params.memset(0); }
     if (inter_params.size() != n_params()) inter_params.resize(n_params()); inter_params.memset(0);
     if (intra_params.size() != n_params()) intra_params.resize(n_params()); intra_params.memset(0);
+    if (residual_topk_i.size() != grid_hit->size()) residual_topk_i.resize(grid_hit->size()); residual_topk_i.memset(0);
+    if (residual_topk_o.size() != grid_hit->size()) residual_topk_o.resize(grid_hit->size()); residual_topk_o.memset(0);
     // 核心过程：过滤掉小残差
     // 统计：需要传完整参数的参数数量，过滤掉小残差后的残差数量和不变的参数数量
     size_t offset = n_params() - grid_hit->size();
@@ -149,6 +160,7 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
         last_params=last_params.data() + offset,
         inter_params=inter_params.data() + offset,
         intra_params=intra_params.data() + offset,
+        residual_topk_i=residual_topk_i.data(),
         inter_counter_gpu, intra_counter_gpu, equal_counter_gpu
     ] __device__ (size_t i) {
         if (grid_hit[i] <= 0) return;
@@ -158,8 +170,8 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
             return;
         }
         network_precision_t residual = params[i] - last_params[i];
-        if (residual < (network_precision_t)MIN_RESIDUAL && residual > -(network_precision_t)MIN_RESIDUAL) {
-            atomicAdd(inter_counter_gpu, 1);
+        if (residual > (network_precision_t)MIN_RESIDUAL || residual < -(network_precision_t)MIN_RESIDUAL) {
+            residual_topk_i[atomicAdd(inter_counter_gpu, 1)] = residual;
             inter_params[i] = residual;
         }
 		else {
@@ -176,6 +188,14 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
         last_grid_hit[i] = grid_hit[i] > 0;
         accu_grid_hit[i] = grid_hit[i] > 0 || accu_grid_hit[i];
     });
+
+    // 核心过程：k th 残差过滤
+    uint64_t inter_counter_cpu = int_counter_cpu[0];
+    parallel_for_gpu(m_stream.get(), inter_counter_cpu, [input=residual_topk_i.data(), output=residual_topk_o.data()] __device__ (size_t i) {
+        output[i] = (input[i]>=(network_precision_t)0)?input[i]:-input[i];
+    });
+    network_precision_t top = topk(residual_topk_o.data(), inter_counter_cpu, fminf(M, int_counter_cpu[0]));
+    tlog::info() << "top " << fminf(M, int_counter_cpu[0]) << " = " << (float)top;
 
     // // 核心过程：模拟残差加
     // CUDA_CHECK_THROW(cudaMalloc(&counter_gpu, sizeof(uint64_t) * 2));
