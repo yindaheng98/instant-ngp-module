@@ -136,6 +136,13 @@ int main_func(const std::vector<std::string>& arguments) {
 		{"diff"},
 	};
 
+	Flag nocompress_flag{
+		parser,
+		"NOCOMPRESS",
+		"BSOM files are not compressed.",
+		{"nocompress"},
+	};
+
 	ValueFlag<string> savecam_flag{
 		parser,
 		"SAVECAM",
@@ -202,6 +209,10 @@ int main_func(const std::vector<std::string>& arguments) {
 
 	if (vr_flag) {
 		testbed.init_vr();
+	}
+
+	if (nocompress_flag) {
+		testbed.read_compression = false;
 	}
 
 	// testbed.set_params_load_cache_size(1048576);

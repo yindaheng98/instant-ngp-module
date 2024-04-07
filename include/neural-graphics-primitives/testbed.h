@@ -493,6 +493,7 @@ public:
 	void save_grid_hit(const fs::path& path, bool compress = true); // yin: for ngp flow
 	void do_grid_hit(GPUMemory<uint32_t>* grid_hit); // yin: for ngp flow
 	void sync_grid_frame(); // yin: for ngp flow
+	bool  read_compression = true; // yin: for ngp flow
 private:
 	GPUMemory<int64_t> last_grid_frame; // yin: for ngp flow
 	GPUMemory<int64_t> this_grid_frame; // yin: for ngp flow
@@ -518,7 +519,7 @@ private:
 	std::queue<QueueObj> load_frame_queue; // yin: for ngp flow
 	std::queue<QueueObj> diff_frame_queue; // yin: for ngp flow
 	std::thread last_update_frame_thread; // yin: for ngp flow
-	bool frame_data_enqueue(const fs::path& path, std::queue<QueueObj>& queue); // yin: for ngp flow
+	bool frame_data_enqueue(const fs::path& path, std::queue<QueueObj>& queue, bool read_compression); // yin: for ngp flow
 	std::atomic<int64_t> read_frame_thread_counter = {0}; // yin: for ngp flow
 public:
 	void set_params(__half* params_gpu, size_t n, uint32_t* index_gpu = nullptr); // yin: for ngp flow

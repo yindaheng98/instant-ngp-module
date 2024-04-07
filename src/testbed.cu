@@ -3971,14 +3971,19 @@ void Testbed::gather_histograms() {
 	}
 }
 
-bool Testbed::frame_data_enqueue(const fs::path& path, std::queue<QueueObj>& queue) { // yin: for ngp flow
+bool Testbed::frame_data_enqueue(const fs::path& path, std::queue<QueueObj>& queue, bool read_compression) { // yin: for ngp flow
 	if (read_frame_thread_counter >= max_read_frame_thread_n) return false;
 	std::thread current_thread(
-		[&queue](const fs::path path, std::thread last_thread, std::atomic<int64_t>& counter, cudaStream_t stream){
+		[&queue, read_compression](const fs::path path, std::thread last_thread, std::atomic<int64_t>& counter, cudaStream_t stream){
 			counter++;
 			std::ifstream f{native_string(path), std::ios::in | std::ios::binary};
 			zstr::istream zf{f};
-			json data = json::from_bson(zf);
+			json data;
+			if (read_compression) {
+				data = json::from_bson(zf);
+			} else {
+				data = json::from_bson(f);
+			}
 			QueueObj qobj = QueueObj{};
 			if (data.contains("params_size") && data.contains("params")) {
 				size_t params_size = data["params_size"];
@@ -4030,11 +4035,11 @@ void Testbed::join_last_update_frame_thread() {
 }
 
 bool Testbed::load_frame_enqueue(const fs::path& path) { // yin: for ngp flow
-	return frame_data_enqueue(path, load_frame_queue);
+	return frame_data_enqueue(path, load_frame_queue, read_compression);
 }
 
 bool Testbed::diff_frame_enqueue(const fs::path& path) { // yin: for ngp flow
-	return frame_data_enqueue(path, diff_frame_queue);
+	return frame_data_enqueue(path, diff_frame_queue, read_compression);
 }
 
 void Testbed::sync_grid_frame() { // yin: for ngp flow
