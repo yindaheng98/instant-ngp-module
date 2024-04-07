@@ -230,7 +230,17 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
         accu_grid_hit[i] = grid_hit[i] > 0 || accu_grid_hit[i];
     });
 
-    // // 核心过程：模拟残差加
+    // 核心过程：模拟残差加
+    parallel_for_gpu(m_stream.get(), grid_hit->size(),
+    [
+        last_params=last_params.data() + offset,
+        inter_params=inter_params.data() + offset,
+        intra_params=intra_params.data() + offset
+    ] __device__ (size_t i) {
+        if (intra_params[i] != (network_precision_t)0) last_params[i] = intra_params[i];
+        else if (inter_params[i] != (network_precision_t)0) last_params[i] += inter_params[i];
+    });
+
     // CUDA_CHECK_THROW(cudaMalloc(&counter_gpu, sizeof(uint64_t) * 2));
     // CUDA_CHECK_THROW(cudaMemset(counter_gpu, 0, sizeof(uint64_t) * 2));
     // inter_counter_gpu = counter_gpu;
