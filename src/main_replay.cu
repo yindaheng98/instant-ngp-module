@@ -273,7 +273,7 @@ int main_func(const std::vector<std::string>& arguments) {
 		else {
 			if (!std::getline(cam_infile, cam_instr)) break;
 			nlohmann::json next_cam_json = nlohmann::json::parse(cam_instr);
-			testbed.load_camera(next_cam_json["camera"]);
+			testbed.load_camera(next_cam_json["camera"], next_cam_json["views"]);
 			next_frame = next_cam_json.value("frame", next_frame);
 			if (next_frame == frame_sequence[current_display]) { // if so, should not load more frame
 				testbed.reset_accumulation();

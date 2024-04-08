@@ -1093,8 +1093,9 @@ json Testbed::dump_views() {
 	return views;
 }
 
-void Testbed::load_camera(json camera) {
+void Testbed::load_camera(json camera, json views) {
 	m_camera = camera.value("matrix", m_camera);
+	m_camera = views[0].value("camera0", m_camera);
 	m_fov_axis = camera.value("fov_axis", m_fov_axis);
 	if (camera.contains("relative_focal_length")) from_json(camera["relative_focal_length"], m_relative_focal_length);
 	if (camera.contains("screen_center")) from_json(camera["screen_center"], m_screen_center);
