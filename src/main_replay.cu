@@ -150,6 +150,13 @@ int main_func(const std::vector<std::string>& arguments) {
 		{"onlyhit"},
 	};
 
+	ValueFlag<uint64_t> M_flag{
+		parser,
+		"BLIMIT",
+		"Bandwidth limit (M).",
+		{"M_blimit"},
+	};
+
 	// Parse command line arguments and react to parsing
 	// errors using exceptions.
 	try {
@@ -203,6 +210,10 @@ int main_func(const std::vector<std::string>& arguments) {
 
 	if (onlyhit_flag) {
 		testbed.get_grid_hit_only = true;
+	}
+
+	if (M_flag) {
+		testbed.M_blimit = get(M_flag);
 	}
 
 	testbed.m_train = false;

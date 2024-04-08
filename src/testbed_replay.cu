@@ -80,7 +80,6 @@ GPUMemory<network_precision_t> inter_params;
 GPUMemory<network_precision_t> intra_params;
 GPUMemory<network_precision_t> residual_topk_i;
 GPUMemory<network_precision_t> residual_topk_o;
-unsigned int M = 100000;
 int64_t the_frame = 0;
 template< typename... Args >
 std::string string_sprintf( const char* format, Args... args ) {
@@ -188,8 +187,8 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     parallel_for_gpu(m_stream.get(), inter_counter_cpu, [input=residual_topk_i.data(), output=residual_topk_o.data()] __device__ (size_t i) {
         output[i] = (input[i]>=(network_precision_t)0)?input[i]:-input[i];
     });
-    network_precision_t top = topk(residual_topk_o.data(), inter_counter_cpu, fminf(M, int_counter_cpu[0]));
-    tlog::info() << "top " << fminf(M, int_counter_cpu[0]) << " = " << (float)top;
+    network_precision_t top = topk(residual_topk_o.data(), inter_counter_cpu, fminf(M_blimit, int_counter_cpu[0]));
+    tlog::info() << "top " << fminf(M_blimit, int_counter_cpu[0]) << " = " << (float)top;
 
     if (inter_params.size() != n_params()) inter_params.resize(n_params()); inter_params.memset(0);
     CUDA_CHECK_THROW(cudaMemset(counter_gpu, 0, sizeof(uint64_t) * 3));

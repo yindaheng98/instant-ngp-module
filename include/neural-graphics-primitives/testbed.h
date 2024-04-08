@@ -494,6 +494,7 @@ public:
 	void do_grid_hit(GPUMemory<uint32_t>* grid_hit); // yin: for ngp flow
 	void sync_grid_frame(); // yin: for ngp flow
 	bool  read_compression = true; // yin: for ngp flow
+	uint64_t M_blimit = 10000; // yin: for ngp flow
 private:
 	GPUMemory<int64_t> last_grid_frame; // yin: for ngp flow
 	GPUMemory<int64_t> this_grid_frame; // yin: for ngp flow
