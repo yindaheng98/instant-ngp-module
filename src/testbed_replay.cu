@@ -138,8 +138,6 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     tlog::info() << "static not overlap accu " << counter_cpu[0] << " not overlap last " << counter_cpu[1];
 
     if (last_params.size() != n_params()) { last_params.resize(n_params()); last_params.memset(0); }
-    if (inter_params.size() != n_params()) inter_params.resize(n_params()); inter_params.memset(0);
-    if (intra_params.size() != n_params()) intra_params.resize(n_params()); intra_params.memset(0);
     if (residual_topk_i.size() != grid_hit->size()) residual_topk_i.resize(grid_hit->size()); residual_topk_i.memset(0);
     if (residual_topk_o.size() != grid_hit->size()) residual_topk_o.resize(grid_hit->size()); residual_topk_o.memset(0);
     // 核心过程：统计每个区间内的待传features数量；过滤掉小残差
@@ -162,8 +160,6 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
         accu_grid_hit=accu_grid_hit.data(),
         params=m_network->params() + offset,
         last_params=last_params.data() + offset,
-        inter_params=inter_params.data() + offset,
-        intra_params=intra_params.data() + offset,
         residual_topk_i=residual_topk_i.data(),
         inter_counter_gpu, intra_counter_gpu, equal_counter_gpu, layer_counter_gpu, features_prelayer
     ] __device__ (size_t i) {
@@ -171,13 +167,11 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
         if (!accu_grid_hit[i]) {
             atomicAdd(intra_counter_gpu, 1);
             atomicAdd(&layer_counter_gpu[i/features_prelayer], 1);
-            intra_params[i] = params[i];
             return;
         }
         network_precision_t residual = params[i] - last_params[i];
         if (residual > (network_precision_t)MIN_RESIDUAL || residual < -(network_precision_t)MIN_RESIDUAL) {
             residual_topk_i[atomicAdd(inter_counter_gpu, 1)] = residual;
-            inter_params[i] = residual;
         }
 		else {
             atomicAdd(equal_counter_gpu, 1);
@@ -191,7 +185,7 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     tlog::info() << "dynamic inter " << int_counter_cpu[0] << " intra " << int_counter_cpu[1] << " equal " << int_counter_cpu[2];
     for (size_t i=0;i<layers;i++) tlog::info() << " " << intra_counter_cpu[i];
 
-    // 核心过程：feature过滤
+    // 核心过程：确定feature过滤参数
     uint64_t M_features_blimit = gamma_blimit * M_blimit;
     uint64_t M_features_blimit_accu = intra_counter_cpu[0];
     size_t i=1;
@@ -203,7 +197,7 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     if (i>=layers) features_range = m_network->n_params();
     tlog::info() << "features lim " << M_features_blimit << " features select " << M_features_blimit_accu << " layers " << i << " features range " << features_range;
 
-    // 核心过程：top k
+    // 核心过程：确定residual过滤参数(top k)
     uint64_t inter_counter_cpu = int_counter_cpu[0];
     parallel_for_gpu(m_stream.get(), inter_counter_cpu, [input=residual_topk_i.data(), output=residual_topk_o.data()] __device__ (size_t i) {
         output[i] = (input[i]>=(network_precision_t)0)?input[i]:-input[i];
@@ -211,6 +205,7 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     network_precision_t top = topk(residual_topk_o.data(), inter_counter_cpu, fminf(M_blimit, int_counter_cpu[0]));
     tlog::info() << "top " << fminf(M_blimit, int_counter_cpu[0]) << " = " << (float)top;
 
+    if (intra_params.size() != n_params()) intra_params.resize(n_params()); intra_params.memset(0);
     if (inter_params.size() != n_params()) inter_params.resize(n_params()); inter_params.memset(0);
     CUDA_CHECK_THROW(cudaMemset(counter_gpu, 0, sizeof(uint64_t) * 3));
     // 核心过程：k th 残差过滤
@@ -228,6 +223,7 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
         if (grid_hit[i] <= 0) return;
         if (!accu_grid_hit[i]) {
             atomicAdd(intra_counter_gpu, 1);
+            intra_params[i] = params[i];
             return;
         }
         network_precision_t residual = params[i] - last_params[i];
