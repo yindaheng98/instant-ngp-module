@@ -284,6 +284,8 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     });
     snapshot["density_grid"] = density_grid_fp16;
     snapshot["density_grid_size"] = m_nerf.density_grid.size();
+    snapshot["intra"] = intra_params;
+    snapshot["inter"] = inter_params;
 
     fs::path save_path = native_string(string_sprintf(grid_hit_path.c_str(), the_frame));
     fs::create_directories(save_path.parent_path());
