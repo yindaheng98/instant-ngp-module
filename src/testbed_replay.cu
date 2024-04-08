@@ -80,7 +80,7 @@ GPUMemory<network_precision_t> inter_params;
 GPUMemory<network_precision_t> intra_params;
 GPUMemory<network_precision_t> residual_topk_i;
 GPUMemory<network_precision_t> residual_topk_o;
-unsigned int M = 10000;
+unsigned int M = 100000;
 int64_t the_frame = 0;
 template< typename... Args >
 std::string string_sprintf( const char* format, Args... args ) {
