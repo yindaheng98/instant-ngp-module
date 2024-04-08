@@ -191,6 +191,18 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     tlog::info() << "dynamic inter " << int_counter_cpu[0] << " intra " << int_counter_cpu[1] << " equal " << int_counter_cpu[2];
     for (size_t i=0;i<layers;i++) tlog::info() << " " << intra_counter_cpu[i];
 
+    // 核心过程：feature过滤
+    uint64_t M_features_blimit = gamma_blimit * M_blimit;
+    uint64_t M_features_blimit_accu = intra_counter_cpu[0];
+    size_t i=1;
+    while (i<layers && M_features_blimit_accu+intra_counter_cpu[i]<M_features_blimit) {
+        M_features_blimit_accu += intra_counter_cpu[i];
+        i++;
+    }
+    size_t features_range=i*features_prelayer;
+    if (i>=layers) features_range = m_network->n_params();
+    tlog::info() << "features lim " << M_features_blimit << " features select " << M_features_blimit_accu << " layers " << i << " features range " << features_range;
+
     // 核心过程：top k
     uint64_t inter_counter_cpu = int_counter_cpu[0];
     parallel_for_gpu(m_stream.get(), inter_counter_cpu, [input=residual_topk_i.data(), output=residual_topk_o.data()] __device__ (size_t i) {
