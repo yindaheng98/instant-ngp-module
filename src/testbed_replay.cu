@@ -194,16 +194,22 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
         i++;
     }
     size_t features_range=i*features_prelayer;
-    if (i>=layers) features_range = m_network->n_params();
-    tlog::info() << "features lim " << M_features_blimit << " features select " << M_features_blimit_accu << " layers " << i << " features range " << features_range;
+    uint64_t M_features_blimit_rest = M_features_blimit - M_features_blimit_accu;
+    if (i>=layers) {
+        features_range = m_network->n_params();
+    } else {
+        M_features_blimit_accu = M_features_blimit;
+    }
+    tlog::info() << "features  lim " << M_features_blimit << " features select " << M_features_blimit_accu << " layers " << i << " features range " << features_range;
 
     // 核心过程：确定residual过滤参数(top k)
+    uint64_t M_residuals_blimit = M_blimit - M_features_blimit_accu;
     uint64_t inter_counter_cpu = int_counter_cpu[0];
     parallel_for_gpu(m_stream.get(), inter_counter_cpu, [input=residual_topk_i.data(), output=residual_topk_o.data()] __device__ (size_t i) {
         output[i] = (input[i]>=(network_precision_t)0)?input[i]:-input[i];
     });
-    network_precision_t top = topk(residual_topk_o.data(), inter_counter_cpu, fminf(M_blimit, int_counter_cpu[0]));
-    tlog::info() << "top " << fminf(M_blimit, int_counter_cpu[0]) << " = " << (float)top;
+    network_precision_t top = topk(residual_topk_o.data(), inter_counter_cpu, fminf(M_residuals_blimit, int_counter_cpu[0]));
+    tlog::info() << "residuals lim " << M_residuals_blimit << " top " << fminf(M_residuals_blimit, int_counter_cpu[0]) << " = " << (float)top;
 
     if (intra_params.size() != n_params()) intra_params.resize(n_params()); intra_params.memset(0);
     if (inter_params.size() != n_params()) inter_params.resize(n_params()); inter_params.memset(0);
