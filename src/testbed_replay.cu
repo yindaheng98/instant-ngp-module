@@ -193,6 +193,7 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
 
     // 核心过程：确定feature过滤参数
     uint64_t M_features_blimit = gamma_blimit * M_blimit;
+    if (M_blimit > int_counter_cpu[0]) M_features_blimit = fmaxf(M_blimit - int_counter_cpu[0], M_features_blimit);
     uint64_t M_features_blimit_accu = intra_counter_cpu[0];
     size_t i=1;
     while (i<m_n_levels && M_features_blimit_accu+intra_counter_cpu[i]<M_features_blimit) {
