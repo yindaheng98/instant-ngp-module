@@ -159,27 +159,27 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
         uint32_t feature_length = offset_table[i+1]*n_features_per_level-feature_offset;
     parallel_for_gpu(m_stream.get(), feature_length,
     [
-        grid_hit=grid_hit->data(),
-        accu_grid_hit=accu_grid_hit.data(),
+        grid_hit=grid_hit->data() + feature_offset,
+        accu_grid_hit=accu_grid_hit.data() + feature_offset,
         params=m_network->params() + offset + feature_offset,
         last_params=last_params.data() + offset + feature_offset,
         residual_topk_i=residual_topk_i.data(),
         layer_counter_gpu=&layer_counter_gpu[i],
-        inter_counter_gpu, intra_counter_gpu, equal_counter_gpu, feature_offset
+        inter_counter_gpu, intra_counter_gpu, equal_counter_gpu
     ] __device__ (size_t i) {
-        i += feature_offset;
         if (grid_hit[i] <= 0) return;
         if (!accu_grid_hit[i]) {
             atomicAdd(intra_counter_gpu, 1);
             atomicAdd(layer_counter_gpu, 1);
-            return;
-        }
-        network_precision_t residual = params[i] - last_params[i];
-        if (residual > (network_precision_t)MIN_RESIDUAL || residual < -(network_precision_t)MIN_RESIDUAL) {
-            residual_topk_i[atomicAdd(inter_counter_gpu, 1)] = residual;
         }
         else {
-            atomicAdd(equal_counter_gpu, 1);
+            network_precision_t residual = params[i] - last_params[i];
+            if (residual > (network_precision_t)MIN_RESIDUAL || residual < -(network_precision_t)MIN_RESIDUAL) {
+                residual_topk_i[atomicAdd(inter_counter_gpu, 1)] = residual;
+            }
+            else {
+                atomicAdd(equal_counter_gpu, 1);
+            }
         }
     });
     }
@@ -199,14 +199,15 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
         M_features_blimit_accu += intra_counter_cpu[i];
         i++;
     }
-    size_t features_range=offset_table[i]*n_features_per_level;
-    uint64_t M_features_blimit_rest = M_features_blimit < M_features_blimit_accu ? 0 : M_features_blimit - M_features_blimit_accu;
-    if (i>=m_n_levels) {
-        features_range = m_network->n_params();
-    } else {
-        M_features_blimit_accu = fminf(M_features_blimit, M_features_blimit_accu);
+    size_t features_range = offset_table[i]*n_features_per_level;
+    size_t features_range_next = features_range;
+    uint64_t M_features_blimit_rest = 0;
+    if (M_features_blimit >= M_features_blimit_accu && i < m_n_levels) { // 需要填充
+        M_features_blimit_rest = M_features_blimit - M_features_blimit_accu;
+        M_features_blimit_accu = M_features_blimit;
+        features_range_next = offset_table[i+1]*n_features_per_level;
     }
-    tlog::info() << "features  lim " << M_features_blimit << " features select " << M_features_blimit_accu << " layers " << i << " features range " << features_range;
+    tlog::info() << "features  lim " << M_features_blimit << " features select " << M_features_blimit_accu << " layers " << i << " features range " << features_range << "-" << features_range_next;
 
     // 核心过程：确定residual过滤参数(top k)
     uint64_t M_residuals_blimit = M_blimit - M_features_blimit_accu;
@@ -219,59 +220,57 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
 
     if (intra_params.size() != n_params()) intra_params.resize(n_params()); intra_params.memset(0);
     if (inter_params.size() != n_params()) inter_params.resize(n_params()); inter_params.memset(0);
+    uint64_t* rest_counter_gpu;
+    CUDA_CHECK_THROW(cudaMalloc(&rest_counter_gpu, sizeof(uint64_t)));
+    CUDA_CHECK_THROW(cudaMemset(rest_counter_gpu, 0, sizeof(uint64_t)));
     CUDA_CHECK_THROW(cudaMemset(counter_gpu, 0, sizeof(uint64_t) * 3));
-    // 核心过程：k th 残差过滤
+    // 核心过程：feature过滤和k th 残差过滤，并更新hit grid，并模拟残差加
     // 统计：需要传完整参数的参数数量，过滤掉残差后的残差数量和不变的参数数量
     CUDA_CHECK_THROW(cudaMemcpy(last_params.data(), m_network->params(), sizeof(network_precision_t) * offset, cudaMemcpyDeviceToDevice)); // MLP参数不会变
     parallel_for_gpu(m_stream.get(), grid_hit->size(),
     [
         grid_hit=grid_hit->data(),
+        last_grid_hit=last_grid_hit.data(),
         accu_grid_hit=accu_grid_hit.data(),
         params=m_network->params() + offset,
         last_params=last_params.data() + offset,
         inter_params=inter_params.data() + offset,
         intra_params=intra_params.data() + offset,
-        top, features_range, M_features_blimit_rest,
-        inter_counter_gpu, intra_counter_gpu, equal_counter_gpu
+        top, features_range, features_range_next, M_features_blimit_rest,
+        inter_counter_gpu, intra_counter_gpu, equal_counter_gpu, rest_counter_gpu
     ] __device__ (size_t i) {
+        last_grid_hit[i] = grid_hit[i] > 0;
         if (grid_hit[i] <= 0) return;
         if (!accu_grid_hit[i]) {
-            atomicAdd(intra_counter_gpu, 1);
-            intra_params[i] = params[i];
-            return;
+            if (i<features_range) {
+                last_params[i] = intra_params[i] = params[i];
+                accu_grid_hit[i] = true;
+                atomicAdd(intra_counter_gpu, 1);
+            } else if (features_range<features_range_next && i<features_range_next) {
+                if (atomicAdd(rest_counter_gpu, 1)<M_features_blimit_rest) {
+                    last_params[i] = intra_params[i] = params[i];
+                    accu_grid_hit[i] = true;
+                    atomicAdd(intra_counter_gpu, 1);
+                }
+            }
         }
-        network_precision_t residual = params[i] - last_params[i];
-        if (residual > top || residual < -top) {
-            inter_params[i] = residual;
-            atomicAdd(inter_counter_gpu, 1);
+        else {
+            network_precision_t residual = params[i] - last_params[i];
+            if (residual > top || residual < -top) {
+                inter_params[i] = residual;
+                last_params[i] += inter_params[i];
+                atomicAdd(inter_counter_gpu, 1);
+            }
+            else {
+                atomicAdd(equal_counter_gpu, 1);
+            }
         }
-		else {
-            atomicAdd(equal_counter_gpu, 1);
-        }
+        params[i] = last_params[i];
     });
     CUDA_CHECK_THROW(cudaMemcpyAsync(int_counter_cpu, counter_gpu, sizeof(uint64_t) * 3, cudaMemcpyDeviceToHost, m_stream.get()));
     CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
     CUDA_CHECK_THROW(cudaFree(counter_gpu));
     tlog::info() << "filterd inter " << int_counter_cpu[0] << " intra " << int_counter_cpu[1] << " equal " << int_counter_cpu[2];
-
-    // 核心过程：更新hit grid
-    parallel_for_gpu(m_stream.get(), grid_hit->size(), [grid_hit=grid_hit->data(), last_grid_hit=last_grid_hit.data(), accu_grid_hit=accu_grid_hit.data()] __device__ (size_t i) {
-        last_grid_hit[i] = grid_hit[i] > 0;
-        accu_grid_hit[i] = grid_hit[i] > 0 || accu_grid_hit[i];
-    });
-
-    // 核心过程：模拟残差加
-    parallel_for_gpu(m_stream.get(), grid_hit->size(),
-    [
-        params=m_network->params() + offset,
-        last_params=last_params.data() + offset,
-        inter_params=inter_params.data() + offset,
-        intra_params=intra_params.data() + offset
-    ] __device__ (size_t i) {
-        if (intra_params[i] != (network_precision_t)0) last_params[i] = intra_params[i];
-        else if (inter_params[i] != (network_precision_t)0) last_params[i] += inter_params[i];
-        params[i] = last_params[i];
-    });
 
     auto& snapshot = grid_hit_json;
     snapshot["params"] = last_params;
