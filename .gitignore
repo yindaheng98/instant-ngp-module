@@ -1,6 +1,7 @@
 /data
 /results
-/.vs
+/.vs/*
+!.vs/launch.vs.json
 /build*
 /external
 /out
