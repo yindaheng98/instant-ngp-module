@@ -194,11 +194,11 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
         i++;
     }
     size_t features_range=i*features_prelayer;
-    uint64_t M_features_blimit_rest = M_features_blimit - M_features_blimit_accu;
+    uint64_t M_features_blimit_rest = M_features_blimit < M_features_blimit_accu ? 0 : M_features_blimit - M_features_blimit_accu;
     if (i>=layers) {
         features_range = m_network->n_params();
     } else {
-        M_features_blimit_accu = M_features_blimit;
+        M_features_blimit_accu = fminf(M_features_blimit, M_features_blimit_accu);
     }
     tlog::info() << "features  lim " << M_features_blimit << " features select " << M_features_blimit_accu << " layers " << i << " features range " << features_range;
 
@@ -224,7 +224,8 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
         last_params=last_params.data() + offset,
         inter_params=inter_params.data() + offset,
         intra_params=intra_params.data() + offset,
-        top, inter_counter_gpu, intra_counter_gpu, equal_counter_gpu
+        top, features_range, M_features_blimit_rest,
+        inter_counter_gpu, intra_counter_gpu, equal_counter_gpu
     ] __device__ (size_t i) {
         if (grid_hit[i] <= 0) return;
         if (!accu_grid_hit[i]) {
