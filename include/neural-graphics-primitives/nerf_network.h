@@ -114,6 +114,9 @@ public:
 	}
 	GPUMatrixDynamic<uint32_t> last_grid_hit_index;
 	bool record_grid_hit_index = false;
+	uint32_t m_n_levels; // yin: for ngp flow
+	uint32_t n_features_per_level; // yin: for ngp flow
+	uint32_t* offset_table; // yin: for ngp flow
 
 	void inference_mixed_precision_impl(cudaStream_t stream, const GPUMatrixDynamic<float>& input, GPUMatrixDynamic<T>& output, bool use_inference_params = true) override {
 		uint32_t batch_size = input.n();
@@ -133,6 +136,9 @@ public:
 
 		if (record_grid_hit || record_grid_hit_only) {
 			GPUMatrixDynamic<bool>* grid_hit = static_cast<GPUMatrixDynamic<bool>*>(fxxk_ptr[0]);
+			m_n_levels = *static_cast<uint32_t*>(fxxk_ptr[2]);
+			n_features_per_level = *static_cast<uint32_t*>(fxxk_ptr[3]);
+			offset_table = static_cast<uint32_t*>(fxxk_ptr[4]);
 			// tlog::info() << grid_hit->data() << ' ' << grid_hit->m() << ' ' << grid_hit->n();
 			if (last_grid_hit.size() != m_pos_encoding->n_params()) last_grid_hit.resize(m_pos_encoding->n_params());
 			parallel_for_gpu(stream, m_pos_encoding->n_params(), [last_grid_hit=last_grid_hit.data(), grid_hit=grid_hit->data(), step=grid_hit_step] __device__ (size_t i) {
