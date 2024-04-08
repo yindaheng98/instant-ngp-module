@@ -142,8 +142,13 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     if (intra_params.size() != n_params()) intra_params.resize(n_params()); intra_params.memset(0);
     if (residual_topk_i.size() != grid_hit->size()) residual_topk_i.resize(grid_hit->size()); residual_topk_i.memset(0);
     if (residual_topk_o.size() != grid_hit->size()) residual_topk_o.resize(grid_hit->size()); residual_topk_o.memset(0);
-    // 核心过程：过滤掉小残差
+    // 核心过程：统计每个区间内的待传features数量；过滤掉小残差
     // 统计：需要传完整参数的参数数量，过滤掉小残差后的残差数量和不变的参数数量
+    const size_t layers = 8;
+    const size_t features_prelayer = m_network->n_params()/layers + 1;
+    uint64_t* layer_counter_gpu;
+    CUDA_CHECK_THROW(cudaMalloc(&layer_counter_gpu, sizeof(uint64_t) * layers));
+    CUDA_CHECK_THROW(cudaMemset(layer_counter_gpu, 0, sizeof(uint64_t) * layers));
     size_t offset = n_params() - grid_hit->size();
     CUDA_CHECK_THROW(cudaMemcpy(last_params.data(), m_network->params(), sizeof(network_precision_t) * offset, cudaMemcpyDeviceToDevice)); // MLP参数不会变
     CUDA_CHECK_THROW(cudaMalloc(&counter_gpu, sizeof(uint64_t) * 3));
@@ -160,11 +165,12 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
         inter_params=inter_params.data() + offset,
         intra_params=intra_params.data() + offset,
         residual_topk_i=residual_topk_i.data(),
-        inter_counter_gpu, intra_counter_gpu, equal_counter_gpu
+        inter_counter_gpu, intra_counter_gpu, equal_counter_gpu, layer_counter_gpu, features_prelayer
     ] __device__ (size_t i) {
         if (grid_hit[i] <= 0) return;
         if (!accu_grid_hit[i]) {
             atomicAdd(intra_counter_gpu, 1);
+            atomicAdd(&layer_counter_gpu[i/features_prelayer], 1);
             intra_params[i] = params[i];
             return;
         }
@@ -179,8 +185,11 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     });
     uint64_t int_counter_cpu[3];
     CUDA_CHECK_THROW(cudaMemcpyAsync(int_counter_cpu, counter_gpu, sizeof(uint64_t) * 3, cudaMemcpyDeviceToHost, m_stream.get()));
+    uint64_t intra_counter_cpu[layers];
+    CUDA_CHECK_THROW(cudaMemcpyAsync(intra_counter_cpu, layer_counter_gpu, sizeof(uint64_t) * layers, cudaMemcpyDeviceToHost, m_stream.get()));
     CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
     tlog::info() << "dynamic inter " << int_counter_cpu[0] << " intra " << int_counter_cpu[1] << " equal " << int_counter_cpu[2];
+    for (size_t i=0;i<layers;i++) tlog::info() << " " << intra_counter_cpu[i];
 
     // 核心过程：top k
     uint64_t inter_counter_cpu = int_counter_cpu[0];
