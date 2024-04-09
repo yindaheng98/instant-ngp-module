@@ -266,9 +266,11 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
                 atomicAdd(equal_counter_gpu, 1);
             }
         }
-        params[i] = last_params[i];
     });
     CUDA_CHECK_THROW(cudaMemcpyAsync(int_counter_cpu, counter_gpu, sizeof(uint64_t) * 3, cudaMemcpyDeviceToHost, m_stream.get()));
+    parallel_for_gpu(m_stream.get(), grid_hit->size(), [params=m_network->params() + offset, last_params=last_params.data() + offset] __device__ (size_t i) {
+        params[i] = last_params[i];
+    });
     CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
     CUDA_CHECK_THROW(cudaFree(counter_gpu));
     tlog::info() << "filterd inter " << int_counter_cpu[0] << " intra " << int_counter_cpu[1] << " equal " << int_counter_cpu[2];
@@ -290,6 +292,8 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     fs::path save_path = native_string(string_sprintf(grid_hit_path.c_str(), the_frame));
     fs::create_directories(save_path.parent_path());
     save_grid_hit(save_path);
+    auto shapshot_path = native_string(string_sprintf(grid_hit_path.c_str(), the_frame) + ".snapshot.bson");
+    save_snapshot(shapshot_path, false, true);
     the_frame++;
 }
 
