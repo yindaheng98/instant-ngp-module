@@ -136,6 +136,13 @@ int main_func(const std::vector<std::string>& arguments) {
 		{"savecam"},
 	};
 
+	Flag directcam_flag{
+		parser,
+		"DIRECTCAM",
+		"Directly use camera.",
+		{"directcam"},
+	};
+
 	ValueFlag<string> gethit_flag{
 		parser,
 		"GETHIT",
@@ -286,7 +293,8 @@ int main_func(const std::vector<std::string>& arguments) {
 			if (!std::getline(cam_infile, cam_instr)) break;
 			nlohmann::json next_cam_json = nlohmann::json::parse(cam_instr);
 			testbed.load_camera(next_cam_json["camera"], next_cam_json["views"]);
-			next_frame = next_cam_json.value("frame", next_frame);
+			if (directcam_flag) next_frame++;
+			else next_frame = next_cam_json.value("frame", next_frame);
 			if (next_frame == frame_sequence[current_display]) { // if so, should not load more frame
 				testbed.reset_accumulation();
 				continue;
