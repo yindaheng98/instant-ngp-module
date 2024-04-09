@@ -2664,6 +2664,7 @@ void Testbed::train_and_render(bool skip_rendering) {
 			m_pip_render_texture->blit_from_cuda_mapping();
 		}
 	}
+	if (should_save_image) save_image(*m_views[0].render_buffer);
 #endif
 
 	CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));

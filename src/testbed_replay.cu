@@ -267,10 +267,10 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
             }
         }
     });
-    CUDA_CHECK_THROW(cudaMemcpyAsync(int_counter_cpu, counter_gpu, sizeof(uint64_t) * 3, cudaMemcpyDeviceToHost, m_stream.get()));
     parallel_for_gpu(m_stream.get(), grid_hit->size(), [params=m_network->params() + offset, last_params=last_params.data() + offset] __device__ (size_t i) {
         params[i] = last_params[i];
     });
+    CUDA_CHECK_THROW(cudaMemcpyAsync(int_counter_cpu, counter_gpu, sizeof(uint64_t) * 3, cudaMemcpyDeviceToHost, m_stream.get()));
     CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
     CUDA_CHECK_THROW(cudaFree(counter_gpu));
     tlog::info() << "filterd inter " << int_counter_cpu[0] << " intra " << int_counter_cpu[1] << " equal " << int_counter_cpu[2];
@@ -295,6 +295,10 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     auto shapshot_path = native_string(string_sprintf(grid_hit_path.c_str(), the_frame) + ".snapshot.bson");
     save_snapshot(shapshot_path, false, true);
     the_frame++;
+}
+
+void Testbed::save_image(CudaRenderBuffer& buffer) {
+    tlog::info() << "save image to " << save_image_path;
 }
 
 }

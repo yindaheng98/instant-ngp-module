@@ -496,6 +496,9 @@ public:
 	bool  read_compression = true; // yin: for ngp flow
 	uint64_t M_blimit = 10000; // yin: for ngp flow
 	float gamma_blimit = 0.5; // yin: for ngp flow
+	bool  should_save_image = false; // yin: for ngp flow
+	void save_image(CudaRenderBuffer& buffer); // yin: for ngp flow
+	std::string save_image_path; // yin: for ngp flow
 private:
 	GPUMemory<int64_t> last_grid_frame; // yin: for ngp flow
 	GPUMemory<int64_t> this_grid_frame; // yin: for ngp flow

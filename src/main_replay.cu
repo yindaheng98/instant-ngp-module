@@ -157,6 +157,13 @@ int main_func(const std::vector<std::string>& arguments) {
 		{"M_blimit"},
 	};
 
+	ValueFlag<string> save_image_flag{
+		parser,
+		"SAVEIMAGE",
+		"Save image.",
+		{"save_image"},
+	};
+
 	// Parse command line arguments and react to parsing
 	// errors using exceptions.
 	try {
@@ -214,6 +221,11 @@ int main_func(const std::vector<std::string>& arguments) {
 
 	if (M_flag) {
 		testbed.M_blimit = get(M_flag);
+	}
+
+	if (save_image_flag) {
+		testbed.should_save_image = true;
+		testbed.save_image_path = get(save_image_flag);
 	}
 
 	testbed.m_train = false;
