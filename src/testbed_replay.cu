@@ -110,6 +110,7 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     // });
     uint64_t* counter_gpu;
     uint64_t counter_cpu[32];
+    auto& snapshot = grid_hit_json;
 
     // 统计：被调用超过k次的参数数量
     CUDA_CHECK_THROW(cudaMalloc(&counter_gpu, sizeof(uint64_t)));
@@ -121,6 +122,8 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
     CUDA_CHECK_THROW(cudaFree(counter_gpu));
     tlog::info() << "total " << counter_cpu[0] << '/' << grid_hit->size(); // 输出counter_cpu[0]是被调用过至少一次的参数数量
+    grid_hit_json["hit"] = counter_cpu[0];
+    grid_hit_json["total"] = grid_hit->size();
 
     if (accu_grid_hit.size() != grid_hit->size()) {
         accu_grid_hit.resize(grid_hit->size());
@@ -143,6 +146,8 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
     CUDA_CHECK_THROW(cudaFree(counter_gpu));
     tlog::info() << "static not overlap accu " << counter_cpu[0] << " not overlap last " << counter_cpu[1];
+    grid_hit_json["not overlap accu"] = counter_cpu[0];
+    grid_hit_json["not overlap last"] = counter_cpu[1];
 
     if (last_params.size() != n_params()) { last_params.resize(n_params()); last_params.memset(0); }
     if (residual_topk_i.size() != grid_hit->size()) residual_topk_i.resize(grid_hit->size()); residual_topk_i.memset(0);
@@ -196,7 +201,13 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     CUDA_CHECK_THROW(cudaMemcpyAsync(intra_counter_cpu, layer_counter_gpu, sizeof(uint64_t) * m_n_levels, cudaMemcpyDeviceToHost, m_stream.get()));
     CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
     tlog::info() << "dynamic inter " << int_counter_cpu[0] << " intra " << int_counter_cpu[1] << " equal " << int_counter_cpu[2];
-    for (size_t i=0;i<m_n_levels;i++) tlog::info() << " " << intra_counter_cpu[i];
+    grid_hit_json["dynamic inter"] = int_counter_cpu[0];
+    grid_hit_json["dynamic intra"] = int_counter_cpu[1];
+    grid_hit_json["dynamic equal"] = int_counter_cpu[2];
+    for (size_t i=0;i<m_n_levels;i++) {
+        tlog::info() << " " << intra_counter_cpu[i];
+        grid_hit_json["intra levels"][i] = intra_counter_cpu[i];
+    }
 
     // 核心过程：确定feature过滤参数
     uint64_t M_features_blimit = gamma_blimit * M_blimit;
@@ -216,6 +227,11 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
         features_range_next = offset_table[i+1]*n_features_per_level;
     }
     tlog::info() << "features  lim " << M_features_blimit << " features select " << M_features_blimit_accu << " layers " << i << " features range " << features_range << "-" << features_range_next;
+    grid_hit_json["features lim"] = M_features_blimit;
+    grid_hit_json["features select"] = M_features_blimit_accu;
+    grid_hit_json["layers"] = i;
+    grid_hit_json["features range"] = features_range;
+    grid_hit_json["features range next"] = features_range_next;
 
     // 核心过程：确定residual过滤参数(top k)
     uint64_t M_residuals_blimit = M_blimit - M_features_blimit_accu;
@@ -225,6 +241,9 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     });
     network_precision_t top = topk(residual_topk_o.data(), inter_counter_cpu, fminf(M_residuals_blimit, int_counter_cpu[0]));
     tlog::info() << "residuals lim " << M_residuals_blimit << " top " << fminf(M_residuals_blimit, int_counter_cpu[0]) << " = " << (float)top;
+    grid_hit_json["residuals lim"] = M_residuals_blimit;
+    grid_hit_json["k"] = fminf(M_residuals_blimit, int_counter_cpu[0]);
+    grid_hit_json["topk"] = (float)top;
 
     if (intra_params.size() != n_params()) intra_params.resize(n_params()); intra_params.memset(0);
     if (inter_params.size() != n_params()) inter_params.resize(n_params()); inter_params.memset(0);
@@ -281,8 +300,10 @@ void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
     CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
     CUDA_CHECK_THROW(cudaFree(counter_gpu));
     tlog::info() << "filterd inter " << int_counter_cpu[0] << " intra " << int_counter_cpu[1] << " equal " << int_counter_cpu[2];
+    grid_hit_json["filterd inter"] = int_counter_cpu[0];
+    grid_hit_json["filterd intra"] = int_counter_cpu[1];
+    grid_hit_json["filterd equal"] = int_counter_cpu[2];
 
-    auto& snapshot = grid_hit_json;
     snapshot["params"] = last_params;
     snapshot["params_size"] = last_params.size();
     snapshot["density_grid_bitfield"] = m_nerf.density_grid_bitfield;
