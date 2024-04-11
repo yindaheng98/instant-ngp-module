@@ -101,6 +101,13 @@ network_precision_t topk(network_precision_t* input, int length, int k) {
 }
 
 void Testbed::do_grid_hit(GPUMemory<uint32_t>* grid_hit) {
+    // grid_hit->memset(1);
+    // parallel_for_gpu(m_stream.get(), grid_hit->size(), [grid_hit=grid_hit->data(), size=grid_hit->size()] __device__ (size_t i) {
+    //     const size_t tile = 4096;
+    //     size_t l = i - (i % tile);
+    //     size_t h = fminf(l + tile, size);
+    //     if (grid_hit[i]) for (size_t j=l;j<h;j++) grid_hit[j] = true;
+    // });
     uint64_t* counter_gpu;
     uint64_t counter_cpu[32];
 
