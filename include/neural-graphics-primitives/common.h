@@ -131,8 +131,6 @@ static constexpr const char* DlssQualityStrArray[] = {"UltraPerformance", "MaxPe
 
 enum class ETestbedMode : int {
 	Nerf,
-	Sdf,
-	Image,
 	Volume,
 	None,
 };

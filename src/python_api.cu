@@ -344,7 +344,6 @@ PYBIND11_MODULE(pyngp, m) {
 
 	py::enum_<ETestbedMode>(m, "TestbedMode")
 		.value("Nerf", ETestbedMode::Nerf)
-		.value("Image", ETestbedMode::Image)
 		.value("Volume", ETestbedMode::Volume)
 		.value("None", ETestbedMode::None)
 		.export_values();

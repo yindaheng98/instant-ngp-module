@@ -228,14 +228,8 @@ void Testbed::reset_camera() {
 	m_zoom = 1.0f;
 	m_screen_center = vec2(0.5f);
 
-	if (m_testbed_mode == ETestbedMode::Image) {
-		// Make image full-screen at the given view distance
-		m_relative_focal_length = vec2(1.0f);
-		m_scale = 1.0f;
-	} else {
-		set_fov(50.625f);
-		m_scale = 1.5f;
-	}
+	set_fov(50.625f);
+	m_scale = 1.5f;
 
 	m_camera = transpose(mat3x4{
 		1.0f, 0.0f, 0.0f, 0.5f,
@@ -709,13 +703,6 @@ void Testbed::imgui() {
 			ImGui::SliderFloat("Extrinsic L2 reg.", &m_nerf.training.extrinsic_l2_reg, 1e-8f, 0.1f, "%.6f", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoRoundToFormat);
 			ImGui::SliderFloat("Intrinsic L2 reg.", &m_nerf.training.intrinsic_l2_reg, 1e-8f, 0.1f, "%.6f", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoRoundToFormat);
 			ImGui::SliderFloat("Exposure L2 reg.", &m_nerf.training.exposure_l2_reg, 1e-8f, 0.1f, "%.6f", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoRoundToFormat);
-			ImGui::TreePop();
-		}
-
-		if (m_testbed_mode == ETestbedMode::Image && ImGui::TreeNode("Image training options")) {
-			ImGui::Combo("Training coords", (int*)&m_image.random_mode, RandomModeStr);
-			ImGui::Checkbox("Snap to pixel centers", &m_image.training.snap_to_pixel_centers);
-			accum_reset |= ImGui::Checkbox("Linear colors", &m_image.training.linear_colors);
 			ImGui::TreePop();
 		}
 
@@ -1627,17 +1614,6 @@ void Testbed::mouse_wheel() {
 
 	float scale_factor = pow(1.1f, -delta);
 	set_scale(m_scale * scale_factor);
-
-	// When in image mode, zoom around the hovered point.
-	if (m_testbed_mode == ETestbedMode::Image) {
-		vec2 mouse = {ImGui::GetMousePos().x, ImGui::GetMousePos().y};
-		vec3 offset = get_3d_pos_from_pixel(*m_views.front().render_buffer, mouse) - look_at();
-
-		// Don't center around infinitely distant points.
-		if (length(offset) < 256.0f) {
-			m_camera[3] += offset * (1.0f - scale_factor);
-		}
-	}
 
 	reset_accumulation(true);
 }
