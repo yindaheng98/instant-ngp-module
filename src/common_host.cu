@@ -167,7 +167,6 @@ ETestbedMode mode_from_string(const std::string& str) {
 std::string to_string(ETestbedMode mode) {
 	switch (mode) {
 		case ETestbedMode::Nerf: return "nerf";
-		case ETestbedMode::Volume: return "volume";
 		case ETestbedMode::None: return "none";
 		default: throw std::runtime_error{fmt::format("Can not convert mode {} to string.", (int)mode)};
 	}

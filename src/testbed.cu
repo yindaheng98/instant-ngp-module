@@ -705,13 +705,6 @@ void Testbed::imgui() {
 			ImGui::SliderFloat("Exposure L2 reg.", &m_nerf.training.exposure_l2_reg, 1e-8f, 0.1f, "%.6f", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoRoundToFormat);
 			ImGui::TreePop();
 		}
-
-		if (m_testbed_mode == ETestbedMode::Volume && ImGui::TreeNode("Volume training options")) {
-			accum_reset |= ImGui::SliderFloat("Albedo", &m_volume.albedo, 0.f, 1.f);
-			accum_reset |= ImGui::SliderFloat("Scattering", &m_volume.scattering, -2.f, 2.f);
-			accum_reset |= ImGui::SliderFloat("Distance scale", &m_volume.inv_distance_scale, 1.f, 100.f, "%.3g", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoRoundToFormat);
-			ImGui::TreePop();
-		}
 	}
 
 	if (!m_training_data_available) { ImGui::EndDisabled(); }
@@ -830,18 +823,6 @@ void Testbed::imgui() {
 		float max_diam = max(m_aabb.max - m_aabb.min);
 		float render_diam = max(m_render_aabb.max - m_render_aabb.min);
 		float old_render_diam = render_diam;
-
-		if (m_testbed_mode == ETestbedMode::Nerf || m_testbed_mode == ETestbedMode::Volume) {
-			if (ImGui::SliderFloat("Crop size", &render_diam, 0.1f, max_diam, "%.3f", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoRoundToFormat)) {
-				accum_reset = true;
-				if (old_render_diam > 0.f && render_diam > 0.f) {
-					const vec3 center = (m_render_aabb.max + m_render_aabb.min) * 0.5f;
-					float scale = render_diam / old_render_diam;
-					m_render_aabb.max = min((m_render_aabb.max - center) * scale + center, m_aabb.max);
-					m_render_aabb.min = max((m_render_aabb.min - center) * scale + center, m_aabb.min);
-				}
-			}
-		}
 
 		std::string transform_section_name = "World transform";
 		if (m_testbed_mode == ETestbedMode::Nerf) {
@@ -1368,10 +1349,6 @@ void Testbed::draw_visualizations(ImDrawList* list, const mat4x3& camera_matrix)
 	}
 
 	if (m_edit_render_aabb) {
-		if (m_testbed_mode == ETestbedMode::Nerf || m_testbed_mode == ETestbedMode::Volume) {
-			visualize_cube(list, world2proj, m_render_aabb.min, m_render_aabb.max, m_render_aabb_to_local);
-		}
-
 		ImGuiIO& io = ImGui::GetIO();
 		// float flx = focal.x;
 		float fly = focal.y;
