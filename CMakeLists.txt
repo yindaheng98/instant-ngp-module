@@ -269,7 +269,6 @@ list(APPEND NGP_SOURCES
 	src/testbed_image.cu
 	src/testbed_nerf.cu
 	src/testbed_sdf.cu
-	src/testbed_volume.cu
 	src/testbed_common.cu
 	src/testbed_replay.cu
 	src/thread_pool.cpp

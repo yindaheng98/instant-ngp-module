@@ -141,7 +141,6 @@ void Testbed::load_training_data(const fs::path& path) {
 		case ETestbedMode::Nerf:   load_nerf(path); break;
 		case ETestbedMode::Sdf:    load_mesh(path); break;
 		case ETestbedMode::Image:  load_image(path); break;
-		case ETestbedMode::Volume: load_volume(path); break;
 		default: throw std::runtime_error{"Invalid testbed mode."};
 	}
 
@@ -429,9 +428,6 @@ ELossType Testbed::string_to_loss_type(const std::string& str) {
 Testbed::NetworkDims Testbed::network_dims() const {
 	switch (m_testbed_mode) {
 		case ETestbedMode::Nerf:   return network_dims_nerf(); break;
-		case ETestbedMode::Sdf:    return network_dims_sdf(); break;
-		case ETestbedMode::Image:  return network_dims_image(); break;
-		case ETestbedMode::Volume: return network_dims_volume(); break;
 		default: throw std::runtime_error{"Invalid mode."};
 	}
 }

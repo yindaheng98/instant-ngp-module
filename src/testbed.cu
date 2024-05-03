@@ -3704,9 +3704,6 @@ void Testbed::render_frame_main(
 		case ETestbedMode::Image:
 			render_image(device.stream(), device.render_buffer_view(), focal_length, camera_matrix0, screen_center, foveation, visualized_dimension);
 			break;
-		case ETestbedMode::Volume:
-			render_volume(device.stream(), device.render_buffer_view(), focal_length, camera_matrix0, screen_center, foveation);
-			break;
 		default:
 			// No-op if no mode is active
 			break;

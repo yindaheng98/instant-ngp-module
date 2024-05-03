@@ -295,9 +295,6 @@ void Testbed::train(uint32_t batch_size) {
 
 		switch (m_testbed_mode) {
 			case ETestbedMode::Nerf: train_nerf(batch_size, get_loss_scalar, m_stream.get()); break;
-			case ETestbedMode::Sdf: train_sdf(batch_size, get_loss_scalar, m_stream.get()); break;
-			case ETestbedMode::Image: train_image(batch_size, get_loss_scalar, m_stream.get()); break;
-			case ETestbedMode::Volume: train_volume(batch_size, get_loss_scalar, m_stream.get()); break;
 			default: throw std::runtime_error{"Invalid training mode."};
 		}
 

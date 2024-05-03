@@ -273,16 +273,13 @@ public:
 		uint32_t n_pos;
 	};
 
-	NetworkDims network_dims_volume() const;
 	NetworkDims network_dims_sdf() const;
 	NetworkDims network_dims_image() const;
 	NetworkDims network_dims_nerf() const;
 
 	NetworkDims network_dims() const;
 
-	void train_volume(size_t target_batch_size, bool get_loss_scalar, cudaStream_t stream);
 	void training_prep_volume(uint32_t batch_size, cudaStream_t stream) {}
-	void load_volume(const fs::path& data_path);
 
 	class CudaDevice;
 
@@ -319,14 +316,6 @@ public:
 		const vec2& screen_center,
 		const Foveation& foveation,
 		int visualized_dimension
-	);
-	void render_volume(
-		cudaStream_t stream,
-		const CudaRenderBufferView& render_buffer,
-		const vec2& focal_length,
-		const mat4x3& camera_matrix,
-		const vec2& screen_center,
-		const Foveation& foveation
 	);
 
 	void render_frame(
