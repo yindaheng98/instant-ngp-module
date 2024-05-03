@@ -359,118 +359,6 @@ void Testbed::imgui() {
 	static std::string imgui_error_string = "";
 
 	m_picture_in_picture_res = 0;
-	if (ImGui::Begin("Camera path", 0, ImGuiWindowFlags_NoScrollbar)) {
-		if (ImGui::CollapsingHeader("Path manipulation", ImGuiTreeNodeFlags_DefaultOpen)) {
-			if (int read = m_camera_path.imgui(
-				m_imgui.cam_path_path,
-				m_render_ms.val(),
-				m_camera,
-				m_slice_plane_z,
-				m_scale,
-				fov(),
-				m_aperture_size,
-				m_bounding_radius,
-				!m_nerf.training.dataset.xforms.empty() ? m_nerf.training.dataset.xforms[0].start : mat4x3::identity(),
-				m_nerf.glow_mode,
-				m_nerf.glow_y_cutoff
-			)) {
-				if (!m_camera_path.rendering) {
-					reset_accumulation(true);
-
-					if (m_camera_path.update_cam_from_path) {
-						set_camera_from_time(m_camera_path.play_time);
-
-						// A value of larger than 1 indicates that the camera path wants
-						// to override camera smoothing.
-						if (read > 1) {
-							m_smoothed_camera = m_camera;
-						}
-					} else {
-						m_pip_render_buffer->reset_accumulation();
-					}
-				}
-			}
-
-			if (!m_camera_path.keyframes.empty()) {
-				float w = ImGui::GetContentRegionAvail().x;
-				if (m_camera_path.update_cam_from_path) {
-					m_picture_in_picture_res = 0;
-					ImGui::Image((ImTextureID)(size_t)m_rgba_render_textures.front()->texture(), ImVec2(w, w * 9.0f / 16.0f));
-				} else {
-					m_picture_in_picture_res = (float)std::min((int(w)+31)&(~31), 1920/4);
-					ImGui::Image((ImTextureID)(size_t)m_pip_render_texture->texture(), ImVec2(w, w * 9.0f / 16.0f));
-				}
-			}
-		}
-
-		if (!m_camera_path.keyframes.empty() && ImGui::CollapsingHeader("Export video", ImGuiTreeNodeFlags_DefaultOpen)) {
-			// Render a video
-			if (imgui_colored_button(m_camera_path.rendering ? "Abort rendering" : "Render video", 0.4)) {
-				m_camera_path.rendering = !m_camera_path.rendering;
-
-				if (!clear_tmp_dir()) {
-					imgui_error_string = "Failed to clear temporary directory 'tmp' to hold rendered images.";
-					ImGui::OpenPopup("Error");
-
-					m_camera_path.rendering = false;
-				}
-
-				if (m_camera_path.rendering) {
-					m_camera_path.render_start_time = std::chrono::steady_clock::now();
-					m_camera_path.update_cam_from_path = true;
-					m_camera_path.play_time = 0.0f;
-					m_camera_path.auto_play_speed = 1.0f;
-					m_camera_path.render_frame_idx = 0;
-
-					m_dlss = false;
-					m_train = false;
-
-					reset_accumulation(true);
-					set_camera_from_time(m_camera_path.play_time);
-					m_smoothed_camera = m_camera;
-				} else {
-					m_camera_path.update_cam_from_path = false;
-					m_camera_path.play_time = 0.0f;
-					m_camera_path.auto_play_speed = 0.0f;
-				}
-			}
-
-			if (m_camera_path.rendering) {
-				ImGui::SameLine();
-
-				auto elapsed = std::chrono::steady_clock::now() - m_camera_path.render_start_time;
-
-				uint32_t progress = m_camera_path.render_frame_idx * m_camera_path.render_settings.spp + m_views.front().render_buffer->spp();
-				uint32_t goal = m_camera_path.render_settings.n_frames() * m_camera_path.render_settings.spp;
-				auto est_remaining = elapsed * (float)(goal - progress) / std::max(progress, 1u);
-
-				ImGui::Text("%s", fmt::format(
-					"Frame {}/{}, Elapsed: {}, Remaining: {}",
-					m_camera_path.render_frame_idx+1,
-					m_camera_path.render_settings.n_frames(),
-					tlog::durationToString(std::chrono::steady_clock::now() - m_camera_path.render_start_time),
-					tlog::durationToString(est_remaining)
-				).c_str());
-			}
-
-			if (m_camera_path.rendering) { ImGui::BeginDisabled(); }
-
-			ImGui::InputText("File##Video file path", m_imgui.video_path, sizeof(m_imgui.video_path));
-			m_camera_path.render_settings.filename = m_imgui.video_path;
-
-			ImGui::InputInt2("Resolution", &m_camera_path.render_settings.resolution.x);
-			ImGui::InputFloat("Duration (seconds)", &m_camera_path.render_settings.duration_seconds);
-			ImGui::InputFloat("FPS (frames/second)", &m_camera_path.render_settings.fps);
-			ImGui::InputInt("SPP (samples/pixel)", &m_camera_path.render_settings.spp);
-			ImGui::SliderInt("Quality", &m_camera_path.render_settings.quality, 0, 10);
-
-			ImGui::SliderFloat("Shutter fraction", &m_camera_path.render_settings.shutter_fraction, 0.0f, 1.0f);
-
-			if (m_camera_path.rendering) { ImGui::EndDisabled(); }
-		}
-	}
-	ImGui::End();
-
 
 	bool train_extra_dims = m_nerf.training.dataset.n_extra_learnable_dims > 0;
 	if (train_extra_dims && m_nerf.training.n_images_for_training > 0) {
@@ -829,74 +717,7 @@ void Testbed::imgui() {
 			transform_section_name += " & Crop box";
 		}
 
-		if (ImGui::TreeNode(transform_section_name.c_str())) {
-			m_edit_render_aabb = true;
-
-			if (ImGui::RadioButton("Translate world", m_camera_path.m_gizmo_op == ImGuizmo::TRANSLATE && m_edit_world_transform)) {
-				m_camera_path.m_gizmo_op = ImGuizmo::TRANSLATE;
-				m_edit_world_transform = true;
-			}
-
-			ImGui::SameLine();
-			if (ImGui::RadioButton("Rotate world", m_camera_path.m_gizmo_op == ImGuizmo::ROTATE && m_edit_world_transform)) {
-				m_camera_path.m_gizmo_op = ImGuizmo::ROTATE;
-				m_edit_world_transform = true;
-			}
-
-			if (m_testbed_mode == ETestbedMode::Nerf) {
-				if (ImGui::RadioButton("Translate crop box", m_camera_path.m_gizmo_op == ImGuizmo::TRANSLATE && !m_edit_world_transform)) {
-					m_camera_path.m_gizmo_op = ImGuizmo::TRANSLATE;
-					m_edit_world_transform = false;
-				}
-
-				ImGui::SameLine();
-				if (ImGui::RadioButton("Rotate crop box", m_camera_path.m_gizmo_op == ImGuizmo::ROTATE && !m_edit_world_transform)) {
-					m_camera_path.m_gizmo_op = ImGuizmo::ROTATE;
-					m_edit_world_transform = false;
-				}
-
-				accum_reset |= ImGui::SliderFloat("Min x", ((float*)&m_render_aabb.min)+0, m_aabb.min.x, m_render_aabb.max.x, "%.3f");
-				accum_reset |= ImGui::SliderFloat("Min y", ((float*)&m_render_aabb.min)+1, m_aabb.min.y, m_render_aabb.max.y, "%.3f");
-				accum_reset |= ImGui::SliderFloat("Min z", ((float*)&m_render_aabb.min)+2, m_aabb.min.z, m_render_aabb.max.z, "%.3f");
-				ImGui::Separator();
-				accum_reset |= ImGui::SliderFloat("Max x", ((float*)&m_render_aabb.max)+0, m_render_aabb.min.x, m_aabb.max.x, "%.3f");
-				accum_reset |= ImGui::SliderFloat("Max y", ((float*)&m_render_aabb.max)+1, m_render_aabb.min.y, m_aabb.max.y, "%.3f");
-				accum_reset |= ImGui::SliderFloat("Max z", ((float*)&m_render_aabb.max)+2, m_render_aabb.min.z, m_aabb.max.z, "%.3f");
-				ImGui::Separator();
-				vec3 diag = m_render_aabb.diag();
-				bool edit_diag = false;
-				float max_diag = max(m_aabb.diag());
-				edit_diag |= ImGui::SliderFloat("Size x", ((float*)&diag)+0, 0.001f, max_diag, "%.3f");
-				edit_diag |= ImGui::SliderFloat("Size y", ((float*)&diag)+1, 0.001f, max_diag, "%.3f");
-				edit_diag |= ImGui::SliderFloat("Size z", ((float*)&diag)+2, 0.001f, max_diag, "%.3f");
-				if (edit_diag) {
-					accum_reset = true;
-					vec3 cen = m_render_aabb.center();
-					m_render_aabb = BoundingBox(cen - diag * 0.5f, cen + diag * 0.5f);
-				}
-
-				if (ImGui::Button("Reset crop box")) {
-					accum_reset = true;
-					m_render_aabb = m_aabb;
-					m_render_aabb_to_local = mat3::identity();
-				}
-
-				ImGui::SameLine();
-				if (ImGui::Button("rotation only")) {
-					accum_reset = true;
-					vec3 world_cen = transpose(m_render_aabb_to_local) * m_render_aabb.center();
-					m_render_aabb_to_local = mat3::identity();
-					vec3 new_cen = m_render_aabb_to_local * world_cen;
-					vec3 old_cen = m_render_aabb.center();
-					m_render_aabb.min += new_cen - old_cen;
-					m_render_aabb.max += new_cen - old_cen;
-				}
-			}
-
-			ImGui::TreePop();
-		} else {
-			m_edit_render_aabb = false;
-		}
+		m_edit_render_aabb = false;
 
 		if (ImGui::TreeNode("Advanced rendering options")) {
 			ImGui::SliderInt("Max spp", &m_max_spp, 0, 1024, "%d", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoRoundToFormat);
@@ -1378,31 +1199,6 @@ void Testbed::draw_visualizations(ImDrawList* list, const mat4x3& camera_matrix)
 			// we emulate world translation and rotation through (inverse) camera movement.
 			world2view_guizmo = world2view;
 		}
-
-		auto prev_matrix = matrix;
-
-		if (ImGuizmo::Manipulate((const float*)&world2view_guizmo, (const float*)&view2proj_guizmo, m_camera_path.m_gizmo_op, ImGuizmo::LOCAL, (float*)&matrix, NULL, NULL)) {
-			if (m_edit_world_transform) {
-				// We transform the world by transforming the camera in the opposite direction.
-				auto rel = prev_matrix * inverse(matrix);
-				m_camera = mat3(rel) * m_camera;
-				m_camera[3] += rel[3].xyz();
-
-				m_up_dir = mat3(rel) * m_up_dir;
-			} else {
-				m_render_aabb_to_local = transpose(mat3(matrix));
-				vec3 new_cen = m_render_aabb_to_local * matrix[3].xyz();
-				vec3 old_cen = m_render_aabb.center();
-				m_render_aabb.min += new_cen - old_cen;
-				m_render_aabb.max += new_cen - old_cen;
-			}
-
-			reset_accumulation();
-		}
-	}
-
-	if (m_camera_path.imgui_viz(list, view2proj, world2proj, world2view, focal, aspect, m_ndc_znear, m_ndc_zfar)) {
-		m_pip_render_buffer->reset_accumulation();
 	}
 }
 
@@ -1429,14 +1225,6 @@ bool Testbed::keyboard_event() {
 
 	bool ctrl = ImGui::GetIO().KeyMods & ImGuiKeyModFlags_Ctrl;
 	bool shift = ImGui::GetIO().KeyMods & ImGuiKeyModFlags_Shift;
-
-	if (ImGui::IsKeyPressed('Z')) {
-		m_camera_path.m_gizmo_op = ImGuizmo::TRANSLATE;
-	}
-
-	if (ImGui::IsKeyPressed('X')) {
-		m_camera_path.m_gizmo_op = ImGuizmo::ROTATE;
-	}
 
 	if (ImGui::IsKeyPressed('E')) {
 		set_exposure(m_exposure + (shift ? -0.5f : 0.5f));
@@ -2132,126 +1920,6 @@ __global__ void to_8bit_color_kernel(
 	}
 }
 
-void Testbed::prepare_next_camera_path_frame() {
-	if (!m_camera_path.rendering) {
-		return;
-	}
-
-	// If we're rendering a video, we'd like to accumulate multiple spp
-	// for motion blur. Hence dump the frame once the target spp has been reached
-	// and only reset _then_.
-	if (m_views.front().render_buffer->spp() == m_camera_path.render_settings.spp) {
-		auto tmp_dir = fs::path{"tmp"};
-		if (!tmp_dir.exists()) {
-			if (!fs::create_directory(tmp_dir)) {
-				m_camera_path.rendering = false;
-				tlog::error() << "Failed to create temporary directory 'tmp' to hold rendered images.";
-				return;
-			}
-		}
-
-		ivec2 res = m_views.front().render_buffer->out_resolution();
-		const dim3 threads = { 16, 8, 1 };
-		const dim3 blocks = { div_round_up((uint32_t)res.x, threads.x), div_round_up((uint32_t)res.y, threads.y), 1 };
-
-		GPUMemory<uint8_t> image_data(product(res) * 3);
-		to_8bit_color_kernel<<<blocks, threads>>>(
-			res,
-			EColorSpace::SRGB, // the GUI always renders in SRGB
-			m_views.front().render_buffer->surface(),
-			image_data.data()
-		);
-
-		m_render_futures.emplace_back(m_thread_pool.enqueue_task([image_data=std::move(image_data), frame_idx=m_camera_path.render_frame_idx++, res, tmp_dir] {
-			std::vector<uint8_t> cpu_image_data(image_data.size());
-			CUDA_CHECK_THROW(cudaMemcpy(cpu_image_data.data(), image_data.data(), image_data.bytes(), cudaMemcpyDeviceToHost));
-			write_stbi(tmp_dir / fmt::format("{:06d}.jpg", frame_idx), res.x, res.y, 3, cpu_image_data.data(), 100);
-		}));
-
-		reset_accumulation(true);
-
-		if (m_camera_path.render_frame_idx == m_camera_path.render_settings.n_frames()) {
-			m_camera_path.rendering = false;
-
-			wait_all(m_render_futures);
-			m_render_futures.clear();
-
-			tlog::success() << "Finished rendering '.jpg' video frames to '" << tmp_dir << "'. Assembling them into a video next.";
-
-			fs::path ffmpeg = "ffmpeg";
-
-#ifdef _WIN32
-			// Under Windows, try automatically downloading FFmpeg binaries if they don't exist
-			if (system(fmt::format("where {} >nul 2>nul", ffmpeg.str()).c_str()) != 0) {
-				fs::path dir = root_dir();
-				if ((dir/"external"/"ffmpeg").exists()) {
-					for (const auto& path : fs::directory{dir/"external"/"ffmpeg"}) {
-						ffmpeg = path/"bin"/"ffmpeg.exe";
-					}
-				}
-
-				if (!ffmpeg.exists()) {
-					tlog::info() << "FFmpeg not found. Downloading FFmpeg...";
-					do_system((dir/"scripts"/"download_ffmpeg.bat").str());
-				}
-
-				for (const auto& path : fs::directory{dir/"external"/"ffmpeg"}) {
-					ffmpeg = path/"bin"/"ffmpeg.exe";
-				}
-
-				if (!ffmpeg.exists()) {
-					tlog::warning() << "FFmpeg download failed. Trying system-wide FFmpeg.";
-				}
-			}
-#endif
-
-			auto ffmpeg_command = fmt::format(
-				"{} -loglevel error -y -framerate {} -i tmp/%06d.jpg -c:v libx264 -preset slow -crf {} -pix_fmt yuv420p \"{}\"",
-				ffmpeg.str(),
-				m_camera_path.render_settings.fps,
-				// Quality goes from 0 to 10. This conversion to CRF means a quality of 10
-				// is a CRF of 17 and a quality of 0 a CRF of 27, which covers the "sane"
-				// range of x264 quality settings according to the FFmpeg docs:
-				// https://trac.ffmpeg.org/wiki/Encode/H.264
-				27 - m_camera_path.render_settings.quality,
-				m_camera_path.render_settings.filename
-			);
-			int ffmpeg_result = do_system(ffmpeg_command);
-			if (ffmpeg_result == 0) {
-				tlog::success() << "Saved video '" << m_camera_path.render_settings.filename << "'";
-			} else if (ffmpeg_result == -1) {
-				tlog::error() << "Video could not be assembled: FFmpeg not found.";
-			} else {
-				tlog::error() << "Video could not be assembled: FFmpeg failed";
-			}
-
-			clear_tmp_dir();
-		}
-	}
-
-	const auto& rs = m_camera_path.render_settings;
-	m_camera_path.play_time = (float)((double)m_camera_path.render_frame_idx / (double)rs.n_frames());
-
-	if (m_views.front().render_buffer->spp() == 0) {
-		set_camera_from_time(m_camera_path.play_time);
-		apply_camera_smoothing(rs.frame_milliseconds());
-
-		auto smoothed_camera_backup = m_smoothed_camera;
-
-		// Compute the camera for the next frame in order to be able to compute motion blur
-		// between it and the current one.
-		set_camera_from_time(m_camera_path.play_time + 1.0f / rs.n_frames());
-		apply_camera_smoothing(rs.frame_milliseconds());
-
-		m_camera_path.render_frame_end_camera = m_smoothed_camera;
-
-		// Revert camera such that the next frame will be computed correctly
-		// (Start camera of next frame should be the same as end camera of this frame)
-		set_camera_from_time(m_camera_path.play_time);
-		m_smoothed_camera = smoothed_camera_backup;
-	}
-}
-
 void Testbed::train_and_render(bool skip_rendering) {
 	if (m_train) {
 		train(m_training_batch_size);
@@ -2272,7 +1940,7 @@ void Testbed::train_and_render(bool skip_rendering) {
 
 	// Don't do any smoothing here if a camera path is being rendered. It'll take care
 	// of the smoothing on its own.
-	float frame_ms = m_camera_path.rendering ? 0.0f : m_frame_ms.val();
+	float frame_ms = m_frame_ms.val();
 	apply_camera_smoothing(frame_ms);
 
 	if (!m_render_window || !m_render || skip_rendering) {
@@ -2286,8 +1954,6 @@ void Testbed::train_and_render(bool skip_rendering) {
 
 	if (frobenius_norm(m_smoothed_camera - m_camera) < 0.001f) {
 		m_smoothed_camera = m_camera;
-	} else if (!m_camera_path.rendering) {
-		reset_accumulation(true);
 	}
 
 	if (m_autofocus) {
@@ -2315,7 +1981,7 @@ void Testbed::train_and_render(bool skip_rendering) {
 		view.camera0 = m_smoothed_camera;
 
 		// Motion blur over the fraction of time that the shutter is open. Interpolate in log-space to preserve rotations.
-		view.camera1 = m_camera_path.rendering ? camera_log_lerp(m_smoothed_camera, m_camera_path.render_frame_end_camera, m_camera_path.render_settings.shutter_fraction) : view.camera0;
+		view.camera1 = view.camera0;
 
 		view.visualized_dimension = m_visualized_dimension;
 		view.relative_focal_length = m_relative_focal_length;
@@ -2400,12 +2066,8 @@ void Testbed::train_and_render(bool skip_rendering) {
 			ivec2 render_res = view.render_buffer->in_resolution();
 			ivec2 new_render_res = clamp(ivec2(vec2(view.full_resolution) * factor), view.full_resolution / 16, view.full_resolution);
 
-			if (m_camera_path.rendering) {
-				new_render_res = m_camera_path.render_settings.resolution;
-			}
-
 			float ratio = std::sqrt((float)product(render_res) / (float)product(new_render_res));
-			if (ratio > 1.2f || ratio < 0.8f || factor == 1.0f || !m_dynamic_res || m_camera_path.rendering) {
+			if (ratio > 1.2f || ratio < 0.8f || factor == 1.0f || !m_dynamic_res) {
 				render_res = new_render_res;
 			}
 
@@ -2484,13 +2146,6 @@ void Testbed::train_and_render(bool skip_rendering) {
 		ivec2 res{(int)m_picture_in_picture_res, (int)(m_picture_in_picture_res * 9.0f / 16.0f)};
 		m_pip_render_buffer->resize(res);
 		if (m_pip_render_buffer->spp() < 8) {
-			// a bit gross, but let's copy the keyframe's state into the global state in order to not have to plumb through the fov etc to render_frame.
-			CameraKeyframe backup = copy_camera_to_keyframe();
-			CameraKeyframe pip_kf = m_camera_path.eval_camera_path(m_camera_path.play_time);
-			set_camera_from_keyframe(pip_kf);
-			render_frame(m_stream.get(), pip_kf.m(), pip_kf.m(), pip_kf.m(), m_screen_center, m_relative_focal_length, vec4(0.0f), {}, {}, m_visualized_dimension, *m_pip_render_buffer);
-			set_camera_from_keyframe(backup);
-
 			m_pip_render_texture->blit_from_cuda_mapping();
 		}
 	}
@@ -2899,11 +2554,6 @@ bool Testbed::frame() {
 		}
 	}
 
-	if (m_camera_path.rendering) {
-		prepare_next_camera_path_frame();
-		skip_rendering = false;
-	}
-
 #ifdef NGP_GUI
 	if (m_hmd && m_hmd->is_visible()) {
 		skip_rendering = false;
@@ -2982,28 +2632,6 @@ void Testbed::apply_camera_smoothing(float elapsed_ms) {
 	} else {
 		m_smoothed_camera = m_camera;
 	}
-}
-
-CameraKeyframe Testbed::copy_camera_to_keyframe() const {
-	return CameraKeyframe(m_camera, m_slice_plane_z, m_scale, fov(), m_aperture_size, m_nerf.glow_mode, m_nerf.glow_y_cutoff);
-}
-
-void Testbed::set_camera_from_keyframe(const CameraKeyframe& k) {
-	m_camera = k.m();
-	m_slice_plane_z = k.slice;
-	m_scale = k.scale;
-	set_fov(k.fov);
-	m_aperture_size = k.aperture_size;
-	m_nerf.glow_mode = k.glow_mode;
-	m_nerf.glow_y_cutoff = k.glow_y_cutoff;
-}
-
-void Testbed::set_camera_from_time(float t) {
-	if (m_camera_path.keyframes.empty()) {
-		return;
-	}
-
-	set_camera_from_keyframe(m_camera_path.eval_camera_path(t));
 }
 
 void Testbed::update_loss_graph() {
@@ -4045,14 +3673,6 @@ bool Testbed::diff_frame_nonzero_dequeue() { // yin: for ngp flow
 	diff_frame_queue.pop();
 	FreeQueueObj(obj);
 	return true;
-}
-
-bool Testbed::loop_animation() {
-	return m_camera_path.loop;
-}
-
-void Testbed::set_loop_animation(bool value) {
-	m_camera_path.loop = value;
 }
 
 }

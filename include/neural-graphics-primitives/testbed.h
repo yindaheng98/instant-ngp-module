@@ -444,13 +444,7 @@ public:
 	void load_snapshot(nlohmann::json config);
 	void load_snapshot(const fs::path& path);
 	void load_snapshot(std::istream& stream, bool is_compressed = true);
-	CameraKeyframe copy_camera_to_keyframe() const;
-	void set_camera_from_keyframe(const CameraKeyframe& k);
-	void set_camera_from_time(float t);
 	void update_loss_graph();
-	void load_camera_path(const fs::path& path);
-	bool loop_animation();
-	void set_loop_animation(bool value);
 
 	void compute_and_save_marching_cubes_mesh(const fs::path& filename, ivec3 res3d = ivec3(128), BoundingBox aabb = {}, float thresh = 2.5f, bool unwrap_it = false);
 	ivec3 compute_and_save_png_slices(const fs::path& filename, int res, BoundingBox aabb = {}, float thresh = 2.5f, float density_range = 4.f, bool flip_y_and_z_axes = false);
@@ -530,8 +524,6 @@ public:
 	bool m_camera_smoothing = false;
 	bool m_autofocus = false;
 	vec3 m_autofocus_target = vec3(0.5f);
-
-	CameraPath m_camera_path = {};
 
 	vec3 m_up_dir = {0.0f, 1.0f, 0.0f};
 	vec3 m_sun_dir = normalize(vec3(1.0f));

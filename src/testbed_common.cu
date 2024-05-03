@@ -291,12 +291,6 @@ void Testbed::load_file(const fs::path& path) {
 			reload_network_from_file(path);
 			return;
 		}
-
-		// Camera path
-		if (file.contains("path")) {
-			load_camera_path(path);
-			return;
-		}
 	}
 
 	// If the dragged file isn't any of the above, assume that it's training data
@@ -998,10 +992,6 @@ void Testbed::set_all_devices_dirty() {
 	for (auto& device : m_devices) {
 		device.set_dirty(true);
 	}
-}
-
-void Testbed::load_camera_path(const fs::path& path) {
-	m_camera_path.load(path, mat4x3::identity());
 }
 
 json Testbed::dump_camera() {

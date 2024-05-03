@@ -72,7 +72,7 @@ using namespace std::literals::chrono_literals;
 namespace ngp {
 
 void Testbed::train(uint32_t batch_size) {
-	if (!m_training_data_available || m_camera_path.rendering) {
+	if (!m_training_data_available) {
 		m_train = false;
 		return;
 	}
