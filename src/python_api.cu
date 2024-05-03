@@ -612,9 +612,6 @@ PYBIND11_MODULE(pyngp, m) {
 		.def("last_training_view", &Testbed::last_training_view)
 		.def("previous_training_view", &Testbed::previous_training_view)
 		.def("next_training_view", &Testbed::next_training_view)
-		.def("compute_image_mse", &Testbed::compute_image_mse,
-			py::arg("quantize") = false
-		)
 		.def_readwrite("camera_matrix", &Testbed::m_camera)
 		.def_readwrite("up_dir", &Testbed::m_up_dir)
 		.def_readwrite("sun_dir", &Testbed::m_sun_dir)

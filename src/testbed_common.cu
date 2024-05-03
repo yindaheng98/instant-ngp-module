@@ -139,8 +139,6 @@ void Testbed::load_training_data(const fs::path& path) {
 
 	switch (m_testbed_mode) {
 		case ETestbedMode::Nerf:   load_nerf(path); break;
-		case ETestbedMode::Sdf:    load_mesh(path); break;
-		case ETestbedMode::Image:  load_image(path); break;
 		default: throw std::runtime_error{"Invalid testbed mode."};
 	}
 

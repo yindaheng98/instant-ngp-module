@@ -266,7 +266,6 @@ list(APPEND NGP_SOURCES
 	src/marching_cubes.cu
 	src/nerf_loader.cu
 	src/render_buffer.cu
-	src/testbed_image.cu
 	src/testbed_nerf.cu
 	src/testbed_sdf.cu
 	src/testbed_common.cu

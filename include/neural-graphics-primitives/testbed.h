@@ -274,7 +274,6 @@ public:
 	};
 
 	NetworkDims network_dims_sdf() const;
-	NetworkDims network_dims_image() const;
 	NetworkDims network_dims_nerf() const;
 
 	NetworkDims network_dims() const;
@@ -301,15 +300,6 @@ public:
 		cudaStream_t stream,
 		const distance_fun_t& distance_function,
 		const normals_fun_t& normals_function,
-		const CudaRenderBufferView& render_buffer,
-		const vec2& focal_length,
-		const mat4x3& camera_matrix,
-		const vec2& screen_center,
-		const Foveation& foveation,
-		int visualized_dimension
-	);
-	void render_image(
-		cudaStream_t stream,
 		const CudaRenderBufferView& render_buffer,
 		const vec2& focal_length,
 		const mat4x3& camera_matrix,
@@ -419,7 +409,6 @@ public:
 	void train_nerf(uint32_t target_batch_size, bool get_loss_scalar, cudaStream_t stream);
 	void train_nerf_step(uint32_t target_batch_size, NerfCounters& counters, cudaStream_t stream);
 	void train_sdf(size_t target_batch_size, bool get_loss_scalar, cudaStream_t stream);
-	void train_image(size_t target_batch_size, bool get_loss_scalar, cudaStream_t stream);
 	void set_train(bool mtrain);
 
 	template <typename T>
@@ -546,10 +535,6 @@ public:
 	void draw_gui();
 	bool frame();
 	bool want_repl();
-	void load_image(const fs::path& data_path);
-	void load_exr_image(const fs::path& data_path);
-	void load_stbi_image(const fs::path& data_path);
-	void load_binary_image(const fs::path& data_path);
 	uint32_t n_dimensions_to_visualize() const;
 	float fov() const ;
 	void set_fov(float val) ;
@@ -566,8 +551,6 @@ public:
 	void load_camera_path(const fs::path& path);
 	bool loop_animation();
 	void set_loop_animation(bool value);
-
-	float compute_image_mse(bool quantize_to_byte);
 
 	void compute_and_save_marching_cubes_mesh(const fs::path& filename, ivec3 res3d = ivec3(128), BoundingBox aabb = {}, float thresh = 2.5f, bool unwrap_it = false);
 	ivec3 compute_and_save_png_slices(const fs::path& filename, int res, BoundingBox aabb = {}, float thresh = 2.5f, float density_range = 4.f, bool flip_y_and_z_axes = false);

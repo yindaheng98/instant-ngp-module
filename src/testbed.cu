@@ -1059,24 +1059,6 @@ void Testbed::imgui() {
 			ImGui::TreePop();
 		}
 
-		if (m_testbed_mode == ETestbedMode::Image && ImGui::TreeNode("Image rendering options")) {
-			static bool quantize_to_byte = false;
-			static float mse = 0.0f;
-
-			if (imgui_colored_button("Compute PSNR", 0.4)) {
-				mse = compute_image_mse(quantize_to_byte);
-			}
-
-			float psnr = -10.0f * std::log(mse) / std::log(10.0f);
-
-			ImGui::SameLine();
-			ImGui::Text("%0.6f", psnr);
-			ImGui::SameLine();
-			ImGui::Checkbox("Quantize", &quantize_to_byte);
-
-			ImGui::TreePop();
-		}
-
 		if (ImGui::TreeNode("Debug visualization")) {
 			ImGui::Checkbox("Visualize unit cube", &m_visualize_unit_cube);
 			if (m_testbed_mode == ETestbedMode::Nerf) {
@@ -3622,87 +3604,6 @@ void Testbed::render_frame_main(
 			if (!m_render_ground_truth || m_ground_truth_alpha < 1.0f) {
 				render_nerf(device.stream(), device, device.render_buffer_view(), device.nerf_network(), device.data().density_grid_bitfield_ptr, focal_length, camera_matrix0, camera_matrix1, nerf_rolling_shutter, screen_center, foveation, visualized_dimension);
 			}
-			break;
-		case ETestbedMode::Sdf:
-			{
-				if (m_render_ground_truth && m_sdf.groundtruth_mode == ESDFGroundTruthMode::SDFBricks) {
-					if (m_sdf.brick_data.size() == 0) {
-						tlog::info() << "Building voxel brick positions for " << m_sdf.triangle_octree->n_dual_nodes() << " dual nodes.";
-						m_sdf.brick_res = 5;
-						std::vector<vec3> positions = m_sdf.triangle_octree->build_brick_voxel_position_list(m_sdf.brick_res);
-						GPUMemory<vec3> positions_gpu;
-						positions_gpu.resize_and_copy_from_host(positions);
-						m_sdf.brick_data.resize(positions.size());
-						tlog::info() << positions_gpu.size() << " voxel brick positions. Computing SDFs.";
-						m_sdf.triangle_bvh->signed_distance_gpu(
-							positions.size(),
-							EMeshSdfMode::Watertight, //m_sdf.mesh_sdf_mode, // watertight seems to be the best method for 'one off' SDF signing
-							positions_gpu.data(),
-							m_sdf.brick_data.data(),
-							m_sdf.triangles_gpu.data(),
-							false,
-							device.stream()
-						);
-					}
-				}
-
-				distance_fun_t distance_fun =
-					m_render_ground_truth ? (distance_fun_t)[&](uint32_t n_elements, const vec3* positions, float* distances, cudaStream_t stream) {
-						if (m_sdf.groundtruth_mode == ESDFGroundTruthMode::SDFBricks) {
-							// linear_kernel(sdf_brick_kernel, 0, stream,
-							// 	n_elements,
-							// 	positions.data(),
-							// 	distances.data(),
-							// 	m_sdf.triangle_octree->nodes_gpu(),
-							// 	m_sdf.triangle_octree->dual_nodes_gpu(),
-							// 	std::max(1u,std::min(m_sdf.triangle_octree->depth(), m_sdf.brick_level)),
-							// 	m_sdf.brick_data.data(),
-							// 	m_sdf.brick_res,
-							// 	m_sdf.brick_quantise_bits
-							// );
-						} else {
-							m_sdf.triangle_bvh->signed_distance_gpu(
-								n_elements,
-								m_sdf.mesh_sdf_mode,
-								positions,
-								distances,
-								m_sdf.triangles_gpu.data(),
-								false,
-								stream
-							);
-						}
-					} : (distance_fun_t)[&](uint32_t n_elements, const vec3* positions, float* distances, cudaStream_t stream) {
-						n_elements = next_multiple(n_elements, BATCH_SIZE_GRANULARITY);
-						GPUMatrix<float> positions_matrix((float*)positions, 3, n_elements);
-						GPUMatrix<float, RM> distances_matrix(distances, 1, n_elements);
-						m_network->inference(stream, positions_matrix, distances_matrix);
-					};
-
-				normals_fun_t normals_fun =
-					m_render_ground_truth ? (normals_fun_t)[&](uint32_t n_elements, const vec3* positions, vec3* normals, cudaStream_t stream) {
-						// NO-OP. Normals will automatically be populated by raytrace
-					} : (normals_fun_t)[&](uint32_t n_elements, const vec3* positions, vec3* normals, cudaStream_t stream) {
-						n_elements = next_multiple(n_elements, BATCH_SIZE_GRANULARITY);
-						GPUMatrix<float> positions_matrix((float*)positions, 3, n_elements);
-						GPUMatrix<float> normals_matrix((float*)normals, 3, n_elements);
-						m_network->input_gradient(stream, 0, positions_matrix, normals_matrix);
-					};
-
-				render_sdf(
-					device.stream(),
-					distance_fun,
-					normals_fun,
-					device.render_buffer_view(),
-					focal_length,
-					camera_matrix0,
-					screen_center,
-					foveation,
-					visualized_dimension
-				);
-			}
-			break;
-		case ETestbedMode::Image:
-			render_image(device.stream(), device.render_buffer_view(), focal_length, camera_matrix0, screen_center, foveation, visualized_dimension);
 			break;
 		default:
 			// No-op if no mode is active
