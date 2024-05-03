@@ -331,8 +331,6 @@ public:
 	int marching_cubes(ivec3 res3d, const BoundingBox& render_aabb, const mat3& render_aabb_to_local, float thresh);
 
 	float get_depth_from_renderbuffer(const CudaRenderBuffer& render_buffer, const vec2& uv);
-	vec3 get_3d_pos_from_pixel(const CudaRenderBuffer& render_buffer, const vec2& focus_pixel);
-	void autofocus();
 	size_t n_params();
 	size_t first_encoder_param();
 	size_t n_encoding_params();
@@ -486,7 +484,6 @@ public:
 	bool m_want_repl = false;
 
 	bool m_render_window = false;
-	bool m_gather_histograms = false;
 
 	bool m_include_optimizer_state_in_snapshot = false;
 	bool m_compress_snapshot = true;
@@ -522,8 +519,6 @@ public:
 
 	bool m_fps_camera = false;
 	bool m_camera_smoothing = false;
-	bool m_autofocus = false;
-	vec3 m_autofocus_target = vec3(0.5f);
 
 	vec3 m_up_dir = {0.0f, 1.0f, 0.0f};
 	vec3 m_sun_dir = normalize(vec3(1.0f));

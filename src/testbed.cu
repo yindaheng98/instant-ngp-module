@@ -873,7 +873,6 @@ void Testbed::imgui() {
 		ImGui::SameLine();
 		ImGui::Checkbox("Smooth motion", &m_camera_smoothing);
 		ImGui::SameLine();
-		ImGui::Checkbox("Autofocus", &m_autofocus);
 		ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.3f);
 		if (ImGui::SliderFloat("Aperture size", &m_aperture_size, 0.0f, 1.0f, "%.3f", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoRoundToFormat)) {
 			m_dlss = false;
@@ -913,8 +912,6 @@ void Testbed::imgui() {
 				"testbed.look_at = [%0.3f,%0.3f,%0.3f]\n"
 				"testbed.scale = %0.3f\n"
 				"testbed.fov,testbed.aperture_size,testbed.slice_plane_z = %0.3f,%0.3f,%0.3f\n"
-				"testbed.autofocus_target = [%0.3f,%0.3f,%0.3f]\n"
-				"testbed.autofocus = %s\n\n"
 				, b.r, b.g, b.b, b.a
 				, m_exposure
 				, s.x, s.y, s.z
@@ -923,8 +920,6 @@ void Testbed::imgui() {
 				, p.x, p.y, p.z
 				, scale()
 				, fov(), m_aperture_size, m_slice_plane_z
-				, m_autofocus_target.x, m_autofocus_target.y, m_autofocus_target.z
-				, m_autofocus ? "True" : "False"
 			);
 
 			ImGui::InputTextMultiline("Params", buf, sizeof(buf));
@@ -1060,48 +1055,6 @@ void Testbed::imgui() {
 				ImGui::SliderFloat("Density push", &m_mesh.density_amount, 0.f, 128.f);
 				ImGui::SliderFloat("Inflate", &m_mesh.inflate_amount, 0.f, 128.f);
 			}
-		}
-	}
-
-	if (ImGui::CollapsingHeader("Histograms of encoding parameters")) {
-		ImGui::Checkbox("Gather histograms", &m_gather_histograms);
-
-		static float maxlevel = 1.f;
-		if (ImGui::SliderFloat("Max level", &maxlevel, 0.f, 1.f)) {
-			set_max_level(maxlevel);
-		}
-		ImGui::SameLine();
-		ImGui::Text("%0.1f%% values snapped to 0", m_quant_percent);
-
-		std::vector<float> f(m_n_levels);
-
-
-		// Hashgrid statistics
-		for (uint32_t i = 0; i < m_n_levels; ++i) {
-			f[i] = m_level_stats[i].mean();
-		}
-		ImGui::PlotHistogram("Grid means", f.data(), m_n_levels, 0, "means", FLT_MAX, FLT_MAX, ImVec2(0, 60.f));
-		for (uint32_t i = 0; i < m_n_levels; ++i) {
-			f[i] = m_level_stats[i].sigma();
-		}
-		ImGui::PlotHistogram("Grid sigmas", f.data(), m_n_levels, 0, "sigma", FLT_MAX, FLT_MAX, ImVec2(0, 60.f));
-		ImGui::Separator();
-
-
-		// Histogram of trained hashgrid params
-		ImGui::SliderInt("Show details for level", (int*)&m_histo_level, 0, m_n_levels - 1);
-		if (m_histo_level < m_n_levels) {
-			LevelStats& s = m_level_stats[m_histo_level];
-			static bool excludezero = false;
-			if (excludezero) {
-				m_histo[128] = 0.f;
-			}
-			ImGui::PlotHistogram("Values histogram", m_histo, 257, 0, "", FLT_MAX, FLT_MAX, ImVec2(0, 120.f));
-			ImGui::SliderFloat("Histogram horizontal scale", &m_histo_scale, 0.01f, 2.f);
-			ImGui::Checkbox("Exclude 'zero' from histogram", &excludezero);
-			ImGui::Text("Range: %0.5f - %0.5f", s.min, s.max);
-			ImGui::Text("Mean: %0.5f Sigma: %0.5f", s.mean(), s.sigma());
-			ImGui::Text("Num Zero: %d (%0.1f%%)", s.numzero, s.fraczero() * 100.f);
 		}
 	}
 
@@ -1400,9 +1353,6 @@ void Testbed::mouse_drag() {
 	// Left held
 	if (ImGui::GetIO().MouseDown[0]) {
 		if (shift) {
-			m_autofocus_target = get_3d_pos_from_pixel(*m_views.front().render_buffer, mouse);
-			m_autofocus = true;
-
 			reset_accumulation();
 		} else {
 			float rot_sensitivity = m_fps_camera ? 0.35f : 1.0f;
@@ -1954,10 +1904,6 @@ void Testbed::train_and_render(bool skip_rendering) {
 
 	if (frobenius_norm(m_smoothed_camera - m_camera) < 0.001f) {
 		m_smoothed_camera = m_camera;
-	}
-
-	if (m_autofocus) {
-		autofocus();
 	}
 
 #ifdef NGP_GUI
@@ -2576,10 +2522,6 @@ bool Testbed::frame() {
 #ifdef NGP_GUI
 	if (m_render_window) {
 		if (m_gui_redraw) {
-			if (m_gather_histograms) {
-				gather_histograms();
-			}
-
 			draw_gui();
 			m_gui_redraw = false;
 
@@ -3258,88 +3200,6 @@ float Testbed::get_depth_from_renderbuffer(const CudaRenderBuffer& render_buffer
 
 	CUDA_CHECK_THROW(cudaMemcpy(&depth, render_buffer.depth_buffer() + depth_pixel.x + depth_pixel.y * res.x, sizeof(float), cudaMemcpyDeviceToHost));
 	return depth;
-}
-
-vec3 Testbed::get_3d_pos_from_pixel(const CudaRenderBuffer& render_buffer, const vec2& pixel) {
-	float depth = get_depth_from_renderbuffer(render_buffer, pixel / vec2(m_window_res));
-	auto ray = pixel_to_ray_pinhole(0, ivec2(pixel), m_window_res, calc_focal_length(m_window_res, m_relative_focal_length, m_fov_axis, m_zoom), m_smoothed_camera, render_screen_center(m_screen_center));
-	return ray(depth);
-}
-
-void Testbed::autofocus() {
-	float new_slice_plane_z = std::max(dot(view_dir(), m_autofocus_target - view_pos()), 0.1f) - m_scale;
-	if (new_slice_plane_z != m_slice_plane_z) {
-		m_slice_plane_z = new_slice_plane_z;
-		if (m_aperture_size != 0.0f) {
-			reset_accumulation();
-		}
-	}
-}
-
-Testbed::LevelStats compute_level_stats(const float* params, size_t n_params) {
-	Testbed::LevelStats s = {};
-	for (size_t i = 0; i < n_params; ++i) {
-		float v = params[i];
-		float av = fabsf(v);
-		if (av < 0.00001f) {
-			s.numzero++;
-		} else {
-			if (s.count == 0) s.min = s.max = v;
-			s.count++;
-			s.x += v;
-			s.xsquared += v * v;
-			s.min = min(s.min, v);
-			s.max = max(s.max, v);
-		}
-	}
-	return s;
-}
-
-void Testbed::gather_histograms() {
-	if (!m_network) {
-		return;
-	}
-
-	int n_params = (int)m_network->n_params();
-	int first_encoder = first_encoder_param();
-	int n_encoding_params = n_params - first_encoder;
-
-	auto hg_enc = dynamic_cast<GridEncoding<network_precision_t>*>(m_encoding.get());
-	if (hg_enc && m_trainer->params()) {
-		std::vector<float> grid(n_encoding_params);
-
-		uint32_t m = m_network->layer_sizes().front().first;
-		uint32_t n = m_network->layer_sizes().front().second;
-		std::vector<float> first_layer_rm(m * n);
-
-		CUDA_CHECK_THROW(cudaMemcpyAsync(grid.data(), m_trainer->params() + first_encoder, grid.size() * sizeof(float), cudaMemcpyDeviceToHost, m_stream.get()));
-		CUDA_CHECK_THROW(cudaMemcpyAsync(first_layer_rm.data(), m_trainer->params(), first_layer_rm.size() * sizeof(float), cudaMemcpyDeviceToHost, m_stream.get()));
-		CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
-
-
-		for (uint32_t l = 0; l < m_n_levels; ++l) {
-			m_level_stats[l] = compute_level_stats(grid.data() + hg_enc->level_params_offset(l), hg_enc->level_n_params(l));
-		}
-
-		int numquant = 0;
-		m_quant_percent = float(numquant * 100) / (float)n_encoding_params;
-		if (m_histo_level < m_n_levels) {
-			size_t nperlevel = hg_enc->level_n_params(m_histo_level);
-			const float* d = grid.data() + hg_enc->level_params_offset(m_histo_level);
-			float scale = 128.f / (m_histo_scale); // fixed scale for now to make it more comparable between levels
-			memset(m_histo, 0, sizeof(m_histo));
-			for (int i = 0; i < nperlevel; ++i) {
-				float v = *d++;
-				if (v == 0.f) {
-					continue;
-				}
-				int bin = (int)floor(v * scale + 128.5f);
-				if (bin >= 0 && bin <= 256) {
-					m_histo[bin]++;
-				}
-			}
-		}
-	}
 }
 
 bool Testbed::frame_data_enqueue(const fs::path& path, std::queue<QueueObj>& queue, bool read_compression) { // yin: for ngp flow

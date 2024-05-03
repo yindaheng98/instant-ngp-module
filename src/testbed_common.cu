@@ -686,9 +686,6 @@ void Testbed::save_snapshot(const fs::path& path, bool include_optimizer_state, 
 	snapshot["camera"]["scale"] = m_scale;
 
 	snapshot["camera"]["aperture_size"] = m_aperture_size;
-	snapshot["camera"]["autofocus"] = m_autofocus;
-	snapshot["camera"]["autofocus_target"] = m_autofocus_target;
-	snapshot["camera"]["autofocus_depth"] = m_slice_plane_z;
 
 	if (m_testbed_mode == ETestbedMode::Nerf) {
 		snapshot["nerf"]["rgb"]["rays_per_batch"] = m_nerf.training.counters_rgb.rays_per_batch;
@@ -812,10 +809,6 @@ void Testbed::load_snapshot(nlohmann::json config) {
 		if (m_aperture_size != 0) {
 			m_dlss = false;
 		}
-
-		m_autofocus = snapshot["camera"].value("autofocus", m_autofocus);
-		if (snapshot["camera"].contains("autofocus_target")) from_json(snapshot["camera"]["autofocus_target"], m_autofocus_target);
-		m_slice_plane_z = snapshot["camera"].value("autofocus_depth", m_slice_plane_z);
 	}
 
 	if (snapshot.contains("render_aabb_to_local")) from_json(snapshot.at("render_aabb_to_local"), m_render_aabb_to_local);
@@ -1004,9 +997,6 @@ json Testbed::dump_camera() {
 	camera["scale"] = m_scale;
 
 	camera["aperture_size"] = m_aperture_size;
-	camera["autofocus"] = m_autofocus;
-	camera["autofocus_target"] = m_autofocus_target;
-	camera["autofocus_depth"] = m_slice_plane_z;
 	return camera;
 }
 
@@ -1037,10 +1027,6 @@ void Testbed::load_camera(json camera, json views) {
 	if (m_aperture_size != 0) {
 		m_dlss = false;
 	}
-
-	m_autofocus = camera.value("autofocus", m_autofocus);
-	if (camera.contains("autofocus_target")) from_json(camera["autofocus_target"], m_autofocus_target);
-	m_slice_plane_z = camera.value("autofocus_depth", m_slice_plane_z);
 }
 
 }

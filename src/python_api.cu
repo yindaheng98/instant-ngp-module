@@ -247,10 +247,6 @@ py::array_t<float> Testbed::render_to_cpu(int width, int height, int spp, bool l
 			m_smoothed_camera = m_camera;
 		}
 
-		if (m_autofocus) {
-			autofocus();
-		}
-
 		render_frame(
 			m_stream.get(),
 			sample_start_cam_matrix,
@@ -580,8 +576,6 @@ PYBIND11_MODULE(pyngp, m) {
 		.def_readwrite("slice_plane_z", &Testbed::m_slice_plane_z)
 		.def_readwrite("dof", &Testbed::m_aperture_size)
 		.def_readwrite("aperture_size", &Testbed::m_aperture_size)
-		.def_readwrite("autofocus", &Testbed::m_autofocus)
-		.def_readwrite("autofocus_target", &Testbed::m_autofocus_target)
 		.def_readwrite("floor_enable", &Testbed::m_floor_enable)
 		.def_readwrite("exposure", &Testbed::m_exposure)
 		.def_property("scale", &Testbed::scale, &Testbed::set_scale)
