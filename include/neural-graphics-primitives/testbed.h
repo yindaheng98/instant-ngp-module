@@ -84,65 +84,6 @@ public:
 	using distance_fun_t = std::function<void(uint32_t, const vec3*, float*, cudaStream_t)>;
 	using normals_fun_t = std::function<void(uint32_t, const vec3*, vec3*, cudaStream_t)>;
 
-	class SphereTracer {
-	public:
-		SphereTracer() {}
-
-		void init_rays_from_camera(
-			uint32_t spp,
-			const ivec2& resolution,
-			const vec2& focal_length,
-			const mat4x3& camera_matrix,
-			const vec2& screen_center,
-			const vec3& parallax_shift,
-			bool snap_to_pixel_centers,
-			const BoundingBox& aabb,
-			float floor_y,
-			float near_distance,
-			float plane_z,
-			float aperture_size,
-			const Foveation& foveation,
-			const Buffer2DView<const vec4>& envmap,
-			vec4* frame_buffer,
-			float* depth_buffer,
-			const Buffer2DView<const uint8_t>& hidden_area_mask,
-			const TriangleOctree* octree,
-			uint32_t n_octree_levels,
-			cudaStream_t stream
-		);
-
-		void init_rays_from_data(uint32_t n_elements, const RaysSdfSoa& data, cudaStream_t stream);
-		uint32_t trace_bvh(TriangleBvh* bvh, const Triangle* triangles, cudaStream_t stream);
-		uint32_t trace(
-			const distance_fun_t& distance_function,
-			float zero_offset,
-			float distance_scale,
-			float maximum_distance,
-			const BoundingBox& aabb,
-			const float floor_y,
-			const TriangleOctree* octree,
-			uint32_t n_octree_levels,
-			cudaStream_t stream
-		);
-		void enlarge(size_t n_elements, cudaStream_t stream);
-		RaysSdfSoa& rays_hit() { return m_rays_hit; }
-		RaysSdfSoa& rays_init() { return m_rays[0];	}
-		uint32_t n_rays_initialized() const { return m_n_rays_initialized; }
-		void set_trace_shadow_rays(bool val) { m_trace_shadow_rays = val; }
-		void set_shadow_sharpness(float val) { m_shadow_sharpness = val; }
-	private:
-		RaysSdfSoa m_rays[2];
-		RaysSdfSoa m_rays_hit;
-		uint32_t* m_hit_counter;
-		uint32_t* m_alive_counter;
-
-		uint32_t m_n_rays_initialized = 0;
-		float m_shadow_sharpness = 2048.f;
-		bool m_trace_shadow_rays = false;
-
-		GPUMemoryArena::Allocation m_scratch_alloc;
-	};
-
 	class NerfTracer {
 	public:
 		NerfTracer() {}
@@ -224,27 +165,6 @@ public:
 		GPUMemoryArena::Allocation m_scratch_alloc;
 	};
 
-	class FiniteDifferenceNormalsApproximator {
-	public:
-		void enlarge(uint32_t n_elements, cudaStream_t stream);
-		void normal(uint32_t n_elements, const distance_fun_t& distance_function, const vec3* pos, vec3* normal, float epsilon, cudaStream_t stream);
-
-	private:
-		vec3* dx;
-		vec3* dy;
-		vec3* dz;
-
-		float* dist_dx_pos;
-		float* dist_dy_pos;
-		float* dist_dz_pos;
-
-		float* dist_dx_neg;
-		float* dist_dy_neg;
-		float* dist_dz_neg;
-
-		GPUMemoryArena::Allocation m_scratch_alloc;
-	};
-
 	struct LevelStats {
 		float mean() { return count ? (x / (float)count) : 0.f; }
 		float variance() { return count ? (xsquared - (x * x) / (float)count) / (float)count : 0.f; }
@@ -273,7 +193,6 @@ public:
 		uint32_t n_pos;
 	};
 
-	NetworkDims network_dims_sdf() const;
 	NetworkDims network_dims_nerf() const;
 
 	NetworkDims network_dims() const;
@@ -292,17 +211,6 @@ public:
 		const mat4x3& camera_matrix0,
 		const mat4x3& camera_matrix1,
 		const vec4& rolling_shutter,
-		const vec2& screen_center,
-		const Foveation& foveation,
-		int visualized_dimension
-	);
-	void render_sdf(
-		cudaStream_t stream,
-		const distance_fun_t& distance_function,
-		const normals_fun_t& normals_function,
-		const CudaRenderBufferView& render_buffer,
-		const vec2& focal_length,
-		const mat4x3& camera_matrix,
 		const vec2& screen_center,
 		const Foveation& foveation,
 		int visualized_dimension
@@ -360,7 +268,6 @@ public:
 	void create_empty_nerf_dataset(size_t n_images, int aabb_scale = 1, bool is_hdr = false);
 	void load_nerf(const fs::path& data_path);
 	void load_nerf_post();
-	void load_mesh(const fs::path& data_path);
 	void set_exposure(float exposure) { m_exposure = exposure; }
 	void set_max_level(float maxlevel);
 	void set_visualized_dim(int dim);
@@ -387,7 +294,6 @@ public:
 	void set_camera_to_training_view(int trainview);
 	void reset_camera();
 	bool keyboard_event();
-	void generate_training_samples_sdf(vec3* positions, float* distances, uint32_t n_to_generate, cudaStream_t stream, bool uniform_only);
 	void update_density_grid_nerf(float decay, uint32_t n_uniform_density_grid_samples, uint32_t n_nonuniform_density_grid_samples, cudaStream_t stream, bool smallest = false);
 	void update_density_grid_mean_and_bitfield(cudaStream_t stream);
 	void mark_density_grid_in_sphere_empty(const vec3& pos, float radius, cudaStream_t stream);
@@ -408,7 +314,6 @@ public:
 
 	void train_nerf(uint32_t target_batch_size, bool get_loss_scalar, cudaStream_t stream);
 	void train_nerf_step(uint32_t target_batch_size, NerfCounters& counters, cudaStream_t stream);
-	void train_sdf(size_t target_batch_size, bool get_loss_scalar, cudaStream_t stream);
 	void set_train(bool mtrain);
 
 	template <typename T>
@@ -417,15 +322,12 @@ public:
 	void prepare_next_camera_path_frame();
 	void imgui();
 	void training_prep_nerf(uint32_t batch_size, cudaStream_t stream);
-	void training_prep_sdf(uint32_t batch_size, cudaStream_t stream);
-	void training_prep_image(uint32_t batch_size, cudaStream_t stream) {}
 	void train(uint32_t batch_size);
 	vec2 calc_focal_length(const ivec2& resolution, const vec2& relative_focal_length, int fov_axis, float zoom) const;
 	vec2 render_screen_center(const vec2& screen_center) const;
 	void optimise_mesh_step(uint32_t N_STEPS);
 	void compute_mesh_vertex_colors();
 	GPUMemory<float> get_density_on_grid(ivec3 res3d, const BoundingBox& aabb, const mat3& render_aabb_to_local); // network version (nerf or sdf)
-	GPUMemory<float> get_sdf_gt_on_grid(ivec3 res3d, const BoundingBox& aabb, const mat3& render_aabb_to_local); // sdf gt version (sdf only)
 	GPUMemory<vec4> get_rgba_on_grid(ivec3 res3d, vec3 ray_dir, bool voxel_centers, float depth, bool density_as_alpha = false);
 	int marching_cubes(ivec3 res3d, const BoundingBox& render_aabb, const mat3& render_aabb_to_local, float thresh);
 
@@ -518,7 +420,6 @@ public:
 // 	GPUMemory<uint32_t> density_grid_index_gpu; // yin: for ngp flow
 
 public:
-	double calculate_iou(uint32_t n_samples=128*1024*1024, float scale_existing_results_factor=0.0, bool blocking=true, bool force_use_octree = true);
 	void draw_visualizations(ImDrawList* list, const mat4x3& camera_matrix);
 	void train_and_render(bool skip_rendering);
 	fs::path training_data_path() const;

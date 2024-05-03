@@ -115,10 +115,6 @@ void Testbed::train_and_render(bool skip_rendering) {
 
 bool Testbed::frame() {
 	train_and_render(true);
-	if (m_testbed_mode == ETestbedMode::Sdf && m_sdf.calculate_iou_online) {
-		m_sdf.iou = calculate_iou(64*64*64, m_sdf.iou_decay, false, true);
-		m_sdf.iou_decay = 0.f;
-	}
 
 	return true;
 }
@@ -267,9 +263,6 @@ void Testbed::train(uint32_t batch_size) {
 
 		switch (m_testbed_mode) {
 			case ETestbedMode::Nerf: training_prep_nerf(batch_size, m_stream.get()); break;
-			case ETestbedMode::Sdf: training_prep_sdf(batch_size, m_stream.get()); break;
-			case ETestbedMode::Image: training_prep_image(batch_size, m_stream.get()); break;
-			case ETestbedMode::Volume: training_prep_volume(batch_size, m_stream.get()); break;
 			default: throw std::runtime_error{"Invalid training mode."};
 		}
 

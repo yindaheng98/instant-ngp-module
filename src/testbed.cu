@@ -291,7 +291,7 @@ ivec3 Testbed::compute_and_save_png_slices(const fs::path& filename, int res, Bo
 	}
 
 	std::string fname = fmt::format(".density_slices_{}x{}x{}.png", res3d.x, res3d.y, res3d.z);
-	GPUMemory<float> density = (m_render_ground_truth && m_testbed_mode == ETestbedMode::Sdf) ? get_sdf_gt_on_grid(res3d, aabb, render_aabb_to_local) : get_density_on_grid(res3d, aabb, render_aabb_to_local);
+	GPUMemory<float> density = get_density_on_grid(res3d, aabb, render_aabb_to_local);
 	save_density_grid_to_png(density, filename.str() + fname, res3d, thresh, flip_y_and_z_axes, range);
 	return res3d;
 }
@@ -719,21 +719,6 @@ void Testbed::imgui() {
 			ImGui::SliderFloat("Extrinsic L2 reg.", &m_nerf.training.extrinsic_l2_reg, 1e-8f, 0.1f, "%.6f", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoRoundToFormat);
 			ImGui::SliderFloat("Intrinsic L2 reg.", &m_nerf.training.intrinsic_l2_reg, 1e-8f, 0.1f, "%.6f", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoRoundToFormat);
 			ImGui::SliderFloat("Exposure L2 reg.", &m_nerf.training.exposure_l2_reg, 1e-8f, 0.1f, "%.6f", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoRoundToFormat);
-			ImGui::TreePop();
-		}
-
-		if (m_testbed_mode == ETestbedMode::Sdf && ImGui::TreeNode("SDF training options")) {
-			accum_reset |= ImGui::Checkbox("Use octree for acceleration", &m_sdf.use_triangle_octree);
-			accum_reset |= ImGui::Combo("Mesh SDF mode", (int*)&m_sdf.mesh_sdf_mode, MeshSdfModeStr);
-
-			accum_reset |= ImGui::SliderFloat("Surface offset scale", &m_sdf.training.surface_offset_scale, 0.125f, 1024.0f, "%.4f", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoRoundToFormat);
-
-			if (ImGui::Checkbox("Calculate IoU", &m_sdf.calculate_iou_online)) {
-				m_sdf.iou_decay = 0;
-			}
-
-			ImGui::SameLine();
-			ImGui::Text("%0.6f", m_sdf.iou);
 			ImGui::TreePop();
 		}
 
@@ -3074,10 +3059,6 @@ bool Testbed::frame() {
 
 
 	train_and_render(skip_rendering);
-	if (m_testbed_mode == ETestbedMode::Sdf && m_sdf.calculate_iou_online) {
-		m_sdf.iou = calculate_iou(m_train ? 64*64*64 : 128*128*128, m_sdf.iou_decay, false, true);
-		m_sdf.iou_decay = 0.f;
-	}
 
 #ifdef NGP_GUI
 	if (m_render_window) {

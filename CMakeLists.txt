@@ -267,7 +267,6 @@ list(APPEND NGP_SOURCES
 	src/nerf_loader.cu
 	src/render_buffer.cu
 	src/testbed_nerf.cu
-	src/testbed_sdf.cu
 	src/testbed_common.cu
 	src/testbed_replay.cu
 	src/thread_pool.cpp

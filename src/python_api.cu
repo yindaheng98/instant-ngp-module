@@ -531,12 +531,6 @@ PYBIND11_MODULE(pyngp, m) {
 		// .def("set_params_load_cache_size", &Testbed::set_params_load_cache_size, "Load params at any time.")
 		// .def("set_density_grid_load_cache_size", &Testbed::set_density_grid_load_cache_size, "Load density grid at any time.")
 		.def("join_last_update_frame_thread", &Testbed::join_last_update_frame_thread, "Wait until the testbed frame read finish.")
-		.def("calculate_iou", &Testbed::calculate_iou, "Calculate the intersection over union error value",
-			py::arg("n_samples") = 128*1024*1024,
-			py::arg("scale_existing_results_factor") = 0.0f,
-			py::arg("blocking") = true,
-			py::arg("force_use_octree") = true
-		)
 		.def("n_params", &Testbed::n_params, "Number of trainable parameters")
 		.def("n_encoding_params", &Testbed::n_encoding_params, "Number of trainable parameters in the encoding")
 		.def("save_snapshot", &Testbed::save_snapshot, py::arg("path"), py::arg("include_optimizer_state")=false, py::arg("compress")=true, "Save a snapshot of the currently trained model. Optionally compressed (only when saving '.ingp' files).")
