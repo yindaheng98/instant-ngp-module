@@ -82,7 +82,6 @@ void Testbed::set_mode(ETestbedMode mode) {
 	m_image = {};
 	m_mesh = {};
 	m_nerf = {};
-	m_sdf = {};
 	m_volume = {};
 
 	// Kill training-related things
@@ -279,16 +278,7 @@ ivec3 Testbed::compute_and_save_png_slices(const fs::path& filename, int res, Bo
 		thresh = m_mesh.thresh;
 	}
 	float range = density_range;
-	if (m_testbed_mode == ETestbedMode::Sdf) {
-		auto res3d = get_marching_cubes_res(res, aabb);
-		aabb.inflate(range * aabb.diag().x/res3d.x);
-	}
 	auto res3d = get_marching_cubes_res(res, aabb);
-	if (m_testbed_mode == ETestbedMode::Sdf) {
-		// rescale the range to be in output voxels. ie this scale factor is mapped back to the original world space distances.
-		// negated so that black = outside, white = inside
-		range *= -aabb.diag().x / res3d.x;
-	}
 
 	std::string fname = fmt::format(".density_slices_{}x{}x{}.png", res3d.x, res3d.y, res3d.z);
 	GPUMemory<float> density = get_density_on_grid(res3d, aabb, render_aabb_to_local);
@@ -1018,32 +1008,6 @@ void Testbed::imgui() {
 			ImGui::TreePop();
 		}
 
-		if (m_testbed_mode == ETestbedMode::Sdf && ImGui::TreeNode("SDF rendering options")) {
-			accum_reset |= ImGui::Combo("Ground Truth Rendering Mode", (int*)&m_sdf.groundtruth_mode,
-				"Raytraced Mesh\0"
-				"Sphere Traced Mesh\0"
-				"SDF Bricks\0"
-			);
-
-			if (m_sdf.groundtruth_mode == ESDFGroundTruthMode::SDFBricks) {
-				accum_reset |= ImGui::SliderInt("Brick octree Level", (int*)&m_sdf.brick_level, 1, 10);
-				accum_reset |= ImGui::Checkbox("Brick normals track octree Level", &m_sdf.brick_smooth_normals);
-				accum_reset |= ImGui::SliderInt("Brick quantize Bits", (int*)&m_sdf.brick_quantise_bits, 0, 16);
-			}
-
-			accum_reset |= ImGui::Checkbox("Analytic normals", &m_sdf.analytic_normals);
-			accum_reset |= ImGui::Checkbox("Floor", &m_floor_enable);
-
-			accum_reset |= ImGui::SliderFloat("Normals epsilon", &m_sdf.fd_normals_epsilon, 0.00001f, 0.1f, "%.6g", ImGuiSliderFlags_Logarithmic);
-			accum_reset |= ImGui::SliderFloat("Maximum distance", &m_sdf.maximum_distance, 0.00001f, 0.1f, "%.6g", ImGuiSliderFlags_Logarithmic);
-			accum_reset |= ImGui::SliderFloat("Shadow sharpness", &m_sdf.shadow_sharpness, 0.1f, 2048.0f, "%.6g", ImGuiSliderFlags_Logarithmic);
-
-			accum_reset |= ImGui::SliderFloat("Inflate (offset the zero set)", &m_sdf.zero_offset, -0.25f, 0.25f);
-			accum_reset |= ImGui::SliderFloat("Distance scale", &m_sdf.distance_scale, 0.25f, 1.f);
-
-			ImGui::TreePop();
-		}
-
 		if (ImGui::TreeNode("Debug visualization")) {
 			ImGui::Checkbox("Visualize unit cube", &m_visualize_unit_cube);
 			if (m_testbed_mode == ETestbedMode::Nerf) {
@@ -1174,35 +1138,6 @@ void Testbed::imgui() {
 				, m_autofocus ? "True" : "False"
 			);
 
-			if (m_testbed_mode == ETestbedMode::Sdf) {
-				size_t n = strlen(buf);
-				snprintf(buf + n, sizeof(buf) - n,
-					"testbed.sdf.shadow_sharpness = %0.3f\n"
-					"testbed.sdf.analytic_normals = %s\n"
-					"testbed.sdf.use_triangle_octree = %s\n\n"
-					"testbed.sdf.brdf.metallic = %0.3f\n"
-					"testbed.sdf.brdf.subsurface = %0.3f\n"
-					"testbed.sdf.brdf.specular = %0.3f\n"
-					"testbed.sdf.brdf.roughness = %0.3f\n"
-					"testbed.sdf.brdf.sheen = %0.3f\n"
-					"testbed.sdf.brdf.clearcoat = %0.3f\n"
-					"testbed.sdf.brdf.clearcoat_gloss = %0.3f\n"
-					"testbed.sdf.brdf.basecolor = [%0.3f,%0.3f,%0.3f]\n\n"
-					, m_sdf.shadow_sharpness
-					, m_sdf.analytic_normals ? "True" : "False"
-					, m_sdf.use_triangle_octree ? "True" : "False"
-					, m_sdf.brdf.metallic
-					, m_sdf.brdf.subsurface
-					, m_sdf.brdf.specular
-					, m_sdf.brdf.roughness
-					, m_sdf.brdf.sheen
-					, m_sdf.brdf.clearcoat
-					, m_sdf.brdf.clearcoat_gloss
-					, m_sdf.brdf.basecolor.x
-					, m_sdf.brdf.basecolor.y
-					, m_sdf.brdf.basecolor.z
-				);
-			}
 			ImGui::InputTextMultiline("Params", buf, sizeof(buf));
 			ImGui::TreePop();
 		}
@@ -1248,7 +1183,7 @@ void Testbed::imgui() {
 		if (!can_compress) ImGui::EndDisabled();
 	}
 
-	if (m_testbed_mode == ETestbedMode::Nerf || m_testbed_mode == ETestbedMode::Sdf) {
+	if (m_testbed_mode == ETestbedMode::Nerf) {
 		if (ImGui::CollapsingHeader("Export mesh / volume / slices")) {
 			static bool flip_y_and_z_axes = false;
 			static float density_range = 4.f;
@@ -1257,8 +1192,6 @@ void Testbed::imgui() {
 			auto res3d = get_marching_cubes_res(m_mesh.res, aabb);
 
 			// If we use an octree to fit the SDF only close to the surface, then marching cubes will not work (SDF not defined everywhere)
-			bool disable_marching_cubes = m_testbed_mode == ETestbedMode::Sdf && (m_sdf.uses_takikawa_encoding || m_sdf.use_triangle_octree);
-			if (disable_marching_cubes) { ImGui::BeginDisabled(); }
 
 			if (imgui_colored_button("Mesh it!", 0.4f)) {
 				marching_cubes(res3d, aabb, m_render_aabb_to_local, m_mesh.thresh);
@@ -1270,8 +1203,6 @@ void Testbed::imgui() {
 					m_mesh.clear();
 				}
 			}
-
-			if (disable_marching_cubes) { ImGui::EndDisabled(); }
 
 			ImGui::SameLine();
 
@@ -1324,7 +1255,7 @@ void Testbed::imgui() {
 			ImGui::SameLine();
 
 			ImGui::Text("%dx%dx%d", res3d.x, res3d.y, res3d.z);
-			float thresh_range = (m_testbed_mode == ETestbedMode::Sdf) ? 0.5f : 10.f;
+			float thresh_range = 10.f;
 			ImGui::SliderFloat("MC density threshold",&m_mesh.thresh, -thresh_range, thresh_range);
 			ImGui::Combo("Mesh render mode", (int*)&m_mesh_render_mode, "Off\0Vertex Colors\0Vertex Normals\0\0");
 			ImGui::Checkbox("Unwrap mesh", &m_mesh.unwrap);
@@ -1341,21 +1272,6 @@ void Testbed::imgui() {
 				ImGui::SliderFloat("Inflate", &m_mesh.inflate_amount, 0.f, 128.f);
 			}
 		}
-	}
-
-	if (m_testbed_mode == ETestbedMode::Sdf) {
-		if (ImGui::CollapsingHeader("BRDF parameters")) {
-			accum_reset |= ImGui::ColorEdit3("Base color", (float*)&m_sdf.brdf.basecolor );
-			accum_reset |= ImGui::SliderFloat("Roughness", &m_sdf.brdf.roughness, 0.f, 1.f);
-			accum_reset |= ImGui::SliderFloat("Specular", &m_sdf.brdf.specular, 0.f, 1.f);
-			accum_reset |= ImGui::SliderFloat("Metallic", &m_sdf.brdf.metallic, 0.f, 1.f);
-			ImGui::Separator();
-			accum_reset |= ImGui::SliderFloat("Subsurface", &m_sdf.brdf.subsurface, 0.f, 1.f);
-			accum_reset |= ImGui::SliderFloat("Sheen", &m_sdf.brdf.sheen, 0.f, 1.f);
-			accum_reset |= ImGui::SliderFloat("Clearcoat", &m_sdf.brdf.clearcoat, 0.f, 1.f);
-			accum_reset |= ImGui::SliderFloat("Clearcoat gloss", &m_sdf.brdf.clearcoat_gloss, 0.f, 1.f);
-		}
-		m_sdf.brdf.ambientcolor = (m_background_color * m_background_color).rgb();
 	}
 
 	if (ImGui::CollapsingHeader("Histograms of encoding parameters")) {
@@ -1624,12 +1540,6 @@ bool Testbed::keyboard_event() {
 	if (ImGui::IsKeyPressed('M')) {
 		m_single_view = !m_single_view;
 		set_visualized_dim(-1);
-		reset_accumulation();
-	}
-
-
-	if (ImGui::IsKeyPressed('N')) {
-		m_sdf.analytic_normals = !m_sdf.analytic_normals;
 		reset_accumulation();
 	}
 

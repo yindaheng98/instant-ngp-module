@@ -22,7 +22,6 @@
 #include <neural-graphics-primitives/nerf.h>
 #include <neural-graphics-primitives/nerf_loader.h>
 #include <neural-graphics-primitives/render_buffer.h>
-#include <neural-graphics-primitives/sdf.h>
 #include <neural-graphics-primitives/shared_queue.h>
 #include <neural-graphics-primitives/thread_pool.h>
 #include <neural-graphics-primitives/trainable_buffer.cuh>
@@ -729,60 +728,6 @@ public:
 		void set_rendering_extra_dims(const std::vector<float>& vals);
 		std::vector<float> get_rendering_extra_dims_cpu() const;
 	} m_nerf;
-
-	struct Sdf {
-		float shadow_sharpness = 2048.0f;
-		float maximum_distance = 0.00005f;
-		float fd_normals_epsilon = 0.0005f;
-
-		ESDFGroundTruthMode groundtruth_mode = ESDFGroundTruthMode::RaytracedMesh;
-
-		BRDFParams brdf;
-
-		// Mesh data
-		EMeshSdfMode mesh_sdf_mode = EMeshSdfMode::Raystab;
-		float mesh_scale;
-
-		GPUMemory<Triangle> triangles_gpu;
-		std::vector<Triangle> triangles_cpu;
-		std::vector<float> triangle_weights;
-		DiscreteDistribution triangle_distribution;
-		GPUMemory<float> triangle_cdf;
-		std::shared_ptr<TriangleBvh> triangle_bvh; // unique_ptr
-
-		bool uses_takikawa_encoding = false;
-		bool use_triangle_octree = false;
-		int octree_depth_target = 0; // we duplicate this state so that you can waggle the slider without triggering it immediately
-		std::shared_ptr<TriangleOctree> triangle_octree;
-
-		GPUMemory<float> brick_data;
-		uint32_t brick_res = 0;
-		uint32_t brick_level = 10;
-		uint32_t brick_quantise_bits = 0;
-		bool brick_smooth_normals = false; // if true, then we space the central difference taps by one voxel
-
-		bool analytic_normals = false;
-		float zero_offset = 0;
-		float distance_scale = 0.95f;
-
-		double iou = 0.0;
-		float iou_decay = 0.0f;
-		bool calculate_iou_online = false;
-		GPUMemory<uint32_t> iou_counter;
-		struct Training {
-			size_t idx = 0;
-			size_t size = 0;
-			size_t max_size = 1 << 24;
-			bool did_generate_more_training_data = false;
-			bool generate_sdf_data_online = true;
-			float surface_offset_scale = 1.0f;
-			GPUMemory<vec3> positions;
-			GPUMemory<vec3> positions_shuffled;
-			GPUMemory<float> distances;
-			GPUMemory<float> distances_shuffled;
-			GPUMemory<vec3> perturbations;
-		} training = {};
-	} m_sdf;
 
 	enum EDataType {
 		Float,

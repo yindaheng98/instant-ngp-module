@@ -431,7 +431,6 @@ Testbed::NetworkDims Testbed::network_dims() const {
 }
 
 void Testbed::reset_network(bool clear_density_grid) {
-	m_sdf.iou_decay = 0;
 
 	m_rng = default_rng_t{m_seed};
 
@@ -601,53 +600,6 @@ void Testbed::reset_network(bool clear_density_grid) {
 			m_distortion.optimizer.reset(create_optimizer<float>(distortion_map_optimizer_config));
 			m_distortion.trainer = std::make_shared<Trainer<float, float>>(m_distortion.map, m_distortion.optimizer, std::shared_ptr<Loss<float>>{create_loss<float>(loss_config)}, m_seed);
 		}
-	} else {
-		uint32_t alignment = network_config.contains("otype") && (equals_case_insensitive(network_config["otype"], "FullyFusedMLP") || equals_case_insensitive(network_config["otype"], "MegakernelMLP")) ? 16u : 8u;
-
-		if (encoding_config.contains("otype") && equals_case_insensitive(encoding_config["otype"], "Takikawa")) {
-			if (m_sdf.octree_depth_target == 0) {
-				m_sdf.octree_depth_target = encoding_config["n_levels"];
-			}
-
-			if (!m_sdf.triangle_octree || m_sdf.triangle_octree->depth() != m_sdf.octree_depth_target) {
-				m_sdf.triangle_octree.reset(new TriangleOctree{});
-				m_sdf.triangle_octree->build(*m_sdf.triangle_bvh, m_sdf.triangles_cpu, m_sdf.octree_depth_target);
-				m_sdf.octree_depth_target = m_sdf.triangle_octree->depth();
-				m_sdf.brick_data.free_memory();
-			}
-
-			m_encoding.reset(new TakikawaEncoding<network_precision_t>(
-				encoding_config["starting_level"],
-				m_sdf.triangle_octree,
-				string_to_interpolation_type(encoding_config.value("interpolation", "linear"))
-			));
-
-			m_sdf.uses_takikawa_encoding = true;
-		} else {
-			m_encoding.reset(create_encoding<network_precision_t>(dims.n_input, encoding_config));
-
-			m_sdf.uses_takikawa_encoding = false;
-			if (m_sdf.octree_depth_target == 0 && encoding_config.contains("n_levels")) {
-				m_sdf.octree_depth_target = encoding_config["n_levels"];
-			}
-		}
-
-		for (auto& device : m_devices) {
-			device.set_network(std::make_shared<NetworkWithInputEncoding<network_precision_t>>(m_encoding, dims.n_output, network_config));
-		}
-
-		m_network = primary_device().network();
-
-		n_encoding_params = m_encoding->n_params();
-
-		tlog::info()
-			<< "Model:         " << dims.n_input
-			<< "--[" << std::string(encoding_config["otype"])
-			<< "]-->" << m_encoding->padded_output_width()
-			<< "--[" << std::string(network_config["otype"])
-			<< "(neurons=" << (int)network_config["n_neurons"] << ",layers=" << ((int)network_config["n_hidden_layers"]+2) << ")"
-			<< "]-->" << dims.n_output
-			;
 	}
 
 	size_t n_network_params = m_network->n_params() - n_encoding_params;

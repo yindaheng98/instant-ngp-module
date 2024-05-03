@@ -344,7 +344,6 @@ PYBIND11_MODULE(pyngp, m) {
 
 	py::enum_<ETestbedMode>(m, "TestbedMode")
 		.value("Nerf", ETestbedMode::Nerf)
-		.value("Sdf", ETestbedMode::Sdf)
 		.value("Image", ETestbedMode::Image)
 		.value("Volume", ETestbedMode::Volume)
 		.value("None", ETestbedMode::None)
@@ -687,19 +686,6 @@ PYBIND11_MODULE(pyngp, m) {
 		.def("get_rendering_extra_dims", &Testbed::Nerf::get_rendering_extra_dims_cpu, "Get the extra dims that are currently used for rendering.")
 		;
 
-	py::class_<BRDFParams> brdfparams(m, "BRDFParams");
-	brdfparams
-		.def_readwrite("metallic", &BRDFParams::metallic)
-		.def_readwrite("subsurface", &BRDFParams::subsurface)
-		.def_readwrite("specular", &BRDFParams::specular)
-		.def_readwrite("roughness", &BRDFParams::roughness)
-		.def_readwrite("sheen", &BRDFParams::sheen)
-		.def_readwrite("clearcoat", &BRDFParams::clearcoat)
-		.def_readwrite("clearcoat_gloss", &BRDFParams::clearcoat_gloss)
-		.def_readwrite("basecolor", &BRDFParams::basecolor)
-		.def_readwrite("ambientcolor", &BRDFParams::ambientcolor)
-		;
-
 	py::class_<TrainingImageMetadata> metadata(m, "TrainingImageMetadata");
 	metadata
 		// Legacy member: lens used to be called "camera_distortion"
@@ -781,29 +767,6 @@ PYBIND11_MODULE(pyngp, m) {
 			py::arg("depth_scale")=1.0f,
 			"set one of the training images. must be a floating point numpy array of (H,W,C) with 4 channels; linear color space; W and H must match image size of the rest of the dataset"
 		)
-		;
-
-	py::class_<Testbed::Sdf> sdf(testbed, "Sdf");
-	sdf
-		.def_readonly("training", &Testbed::Sdf::training)
-		.def_readwrite("mesh_sdf_mode", &Testbed::Sdf::mesh_sdf_mode)
-		.def_readwrite("mesh_scale", &Testbed::Sdf::mesh_scale)
-		.def_readwrite("analytic_normals", &Testbed::Sdf::analytic_normals)
-		.def_readwrite("shadow_sharpness", &Testbed::Sdf::shadow_sharpness)
-		.def_readwrite("fd_normals_epsilon", &Testbed::Sdf::fd_normals_epsilon)
-		.def_readwrite("use_triangle_octree", &Testbed::Sdf::use_triangle_octree)
-		.def_readwrite("zero_offset", &Testbed::Sdf::zero_offset)
-		.def_readwrite("distance_scale", &Testbed::Sdf::distance_scale)
-		.def_readwrite("calculate_iou_online", &Testbed::Sdf::calculate_iou_online)
-		.def_readwrite("groundtruth_mode", &Testbed::Sdf::groundtruth_mode)
-		.def_readwrite("brick_level", &Testbed::Sdf::brick_level)
-		.def_readonly("brick_res", &Testbed::Sdf::brick_res)
-		.def_readwrite("brdf", &Testbed::Sdf::brdf)
-		;
-
-	py::class_<Testbed::Sdf::Training>(sdf, "Training")
-		.def_readwrite("generate_sdf_data_online", &Testbed::Sdf::Training::generate_sdf_data_online)
-		.def_readwrite("surface_offset_scale", &Testbed::Sdf::Training::surface_offset_scale)
 		;
 
 	py::class_<Testbed::Image> image(testbed, "Image");
