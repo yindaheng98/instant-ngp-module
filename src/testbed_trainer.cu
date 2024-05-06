@@ -70,7 +70,6 @@ void Testbed::set_mode(ETestbedMode mode) {
 	m_image = {};
 	m_mesh = {};
 	m_nerf = {};
-	m_sdf = {};
 	m_volume = {};
 
 	// Kill training-related things
