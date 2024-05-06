@@ -130,6 +130,20 @@ int main_func(const std::vector<std::string>& arguments) {
 		{"gethit"},
 	};
 
+	ValueFlag<string> savecam_flag{
+		parser,
+		"SAVECAM",
+		"Path to saved camera record.",
+		{"savecam"},
+	};
+
+	ValueFlag<string> save_image_flag{
+		parser,
+		"SAVEIMAGE",
+		"Save image.",
+		{"save_image"},
+	};
+
 	// Parse command line arguments and react to parsing
 	// errors using exceptions.
 	try {
@@ -188,6 +202,18 @@ int main_func(const std::vector<std::string>& arguments) {
 
 	testbed.m_train = !no_train_flag;
 
+	if (savecam_flag) {
+		testbed.m_train = false;
+		testbed.m_dynamic_res = false;
+	}
+	std::ifstream cam_infile(get(savecam_flag));
+	std::string cam_instr;
+
+	if (save_image_flag) {
+		testbed.should_save_image = true;
+		testbed.save_image_path = get(save_image_flag);
+	}
+
 #ifdef NGP_GUI
 	bool gui = !no_gui_flag;
 #else
@@ -204,6 +230,12 @@ int main_func(const std::vector<std::string>& arguments) {
 
 	// Render/training loop
 	while (testbed.frame()) {
+		if (savecam_flag) {
+			if (!std::getline(cam_infile, cam_instr)) break;
+			nlohmann::json next_cam_json = nlohmann::json::parse(cam_instr);
+			testbed.load_camera(next_cam_json["camera"], next_cam_json["views"]);
+			testbed.reset_accumulation();
+		}
 		if (!gui) {
 			tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val();
 		}
