@@ -127,20 +127,9 @@ void Testbed::load_training_data(const fs::path& path) {
 		throw std::runtime_error{fmt::format("Data path '{}' does not exist.", path.str())};
 	}
 
-	// Automatically determine the mode from the first scene that's loaded
-	ETestbedMode scene_mode = mode_from_scene(path.str());
-	if (scene_mode == ETestbedMode::None) {
-		throw std::runtime_error{fmt::format("Unknown scene format for path '{}'.", path.str())};
-	}
-
-	set_mode(scene_mode);
-
 	m_data_path = path;
 
-	switch (m_testbed_mode) {
-		case ETestbedMode::Nerf:   load_nerf(path); break;
-		default: throw std::runtime_error{"Invalid testbed mode."};
-	}
+	load_nerf(path);
 
 	m_training_data_available = true;
 
@@ -168,7 +157,7 @@ fs::path Testbed::find_network_config(const fs::path& network_config_path) {
 		return network_config_path;
 	}
 
-	fs::path candidate = root_dir()/"configs"/to_string(m_testbed_mode)/network_config_path;
+	fs::path candidate = root_dir()/"configs"/"nerf"/network_config_path;
 	if (candidate.exists()) {
 		return candidate;
 	}
@@ -224,12 +213,6 @@ void Testbed::reload_network_from_file(const fs::path& path) {
 			// appropriate config when switching modes.
 			m_network_config_path = path;
 		}
-	}
-
-	// If the testbed mode hasn't been decided yet, don't load a network yet, but
-	// still keep track of the requested config (see above).
-	if (m_testbed_mode == ETestbedMode::None) {
-		return;
 	}
 
 	fs::path full_network_config_path = find_network_config(m_network_config_path);
@@ -418,10 +401,7 @@ ELossType Testbed::string_to_loss_type(const std::string& str) {
 }
 
 Testbed::NetworkDims Testbed::network_dims() const {
-	switch (m_testbed_mode) {
-		case ETestbedMode::Nerf:   return network_dims_nerf(); break;
-		default: throw std::runtime_error{"Invalid mode."};
-	}
+	return network_dims_nerf();
 }
 
 void Testbed::reset_network(bool clear_density_grid) {
@@ -469,14 +449,12 @@ void Testbed::reset_network(bool clear_density_grid) {
 
 	auto dims = network_dims();
 
-	if (m_testbed_mode == ETestbedMode::Nerf) {
-		m_nerf.training.loss_type = string_to_loss_type(loss_config.value("otype", "L2"));
+	m_nerf.training.loss_type = string_to_loss_type(loss_config.value("otype", "L2"));
 
-		// Some of the Nerf-supported losses are not supported by Loss,
-		// so just create a dummy L2 loss there. The NeRF code path will bypass
-		// the Loss in any case.
-		loss_config["otype"] = "L2";
-	}
+	// Some of the Nerf-supported losses are not supported by Loss,
+	// so just create a dummy L2 loss there. The NeRF code path will bypass
+	// the Loss in any case.
+	loss_config["otype"] = "L2";
 
 	// Automatically determine certain parameters if we're dealing with the (hash)grid encoding
 	if (to_lower(encoding_config.value("otype", "OneBlob")).find("grid") != std::string::npos) {
@@ -526,69 +504,67 @@ void Testbed::reset_network(bool clear_density_grid) {
 	m_optimizer.reset(create_optimizer<network_precision_t>(optimizer_config));
 
 	size_t n_encoding_params = 0;
-	if (m_testbed_mode == ETestbedMode::Nerf) {
-		m_nerf.training.cam_exposure.resize(m_nerf.training.dataset.n_images, AdamOptimizer<vec3>(1e-3f));
-		m_nerf.training.cam_pos_offset.resize(m_nerf.training.dataset.n_images, AdamOptimizer<vec3>(1e-4f));
-		m_nerf.training.cam_rot_offset.resize(m_nerf.training.dataset.n_images, RotationAdamOptimizer(1e-4f));
-		m_nerf.training.cam_focal_length_offset = AdamOptimizer<vec2>(1e-5f);
+	m_nerf.training.cam_exposure.resize(m_nerf.training.dataset.n_images, AdamOptimizer<vec3>(1e-3f));
+	m_nerf.training.cam_pos_offset.resize(m_nerf.training.dataset.n_images, AdamOptimizer<vec3>(1e-4f));
+	m_nerf.training.cam_rot_offset.resize(m_nerf.training.dataset.n_images, RotationAdamOptimizer(1e-4f));
+	m_nerf.training.cam_focal_length_offset = AdamOptimizer<vec2>(1e-5f);
 
-		m_nerf.reset_extra_dims(m_rng);
+	m_nerf.reset_extra_dims(m_rng);
 
-		json& dir_encoding_config = config["dir_encoding"];
-		json& rgb_network_config = config["rgb_network"];
+	json& dir_encoding_config = config["dir_encoding"];
+	json& rgb_network_config = config["rgb_network"];
 
-		uint32_t n_dir_dims = 3;
-		uint32_t n_extra_dims = m_nerf.training.dataset.n_extra_dims();
+	uint32_t n_dir_dims = 3;
+	uint32_t n_extra_dims = m_nerf.training.dataset.n_extra_dims();
 
-		// Instantiate an additional model for each auxiliary GPU
-		for (auto& device : m_devices) {
-			device.set_nerf_network(std::make_shared<NerfNetwork<network_precision_t>>(
-				dims.n_pos,
-				n_dir_dims,
-				n_extra_dims,
-				dims.n_pos + 1, // The offset of 1 comes from the dt member variable of NerfCoordinate. HACKY
-				encoding_config,
-				dir_encoding_config,
-				network_config,
-				rgb_network_config
-			));
+	// Instantiate an additional model for each auxiliary GPU
+	for (auto& device : m_devices) {
+		device.set_nerf_network(std::make_shared<NerfNetwork<network_precision_t>>(
+			dims.n_pos,
+			n_dir_dims,
+			n_extra_dims,
+			dims.n_pos + 1, // The offset of 1 comes from the dt member variable of NerfCoordinate. HACKY
+			encoding_config,
+			dir_encoding_config,
+			network_config,
+			rgb_network_config
+		));
+	}
+
+	m_network = m_nerf_network = primary_device().nerf_network();
+
+	m_encoding = m_nerf_network->pos_encoding();
+	n_encoding_params = m_encoding->n_params() + m_nerf_network->dir_encoding()->n_params();
+
+	tlog::info()
+		<< "Density model: " << dims.n_pos
+		<< "--[" << std::string(encoding_config["otype"])
+		<< "]-->" << m_nerf_network->pos_encoding()->padded_output_width()
+		<< "--[" << std::string(network_config["otype"])
+		<< "(neurons=" << (int)network_config["n_neurons"] << ",layers=" << ((int)network_config["n_hidden_layers"]+2) << ")"
+		<< "]-->" << 1
+		;
+
+	tlog::info()
+		<< "Color model:   " << n_dir_dims
+		<< "--[" << std::string(dir_encoding_config["otype"])
+		<< "]-->" << m_nerf_network->dir_encoding()->padded_output_width() << "+" << network_config.value("n_output_dims", 16u)
+		<< "--[" << std::string(rgb_network_config["otype"])
+		<< "(neurons=" << (int)rgb_network_config["n_neurons"] << ",layers=" << ((int)rgb_network_config["n_hidden_layers"]+2) << ")"
+		<< "]-->" << 3
+		;
+
+	// Create distortion map model
+	{
+		json& distortion_map_optimizer_config =  config.contains("distortion_map") && config["distortion_map"].contains("optimizer") ? config["distortion_map"]["optimizer"] : optimizer_config;
+
+		m_distortion.resolution = ivec2(32);
+		if (config.contains("distortion_map") && config["distortion_map"].contains("resolution")) {
+			from_json(config["distortion_map"]["resolution"], m_distortion.resolution);
 		}
-
-		m_network = m_nerf_network = primary_device().nerf_network();
-
-		m_encoding = m_nerf_network->pos_encoding();
-		n_encoding_params = m_encoding->n_params() + m_nerf_network->dir_encoding()->n_params();
-
-		tlog::info()
-			<< "Density model: " << dims.n_pos
-			<< "--[" << std::string(encoding_config["otype"])
-			<< "]-->" << m_nerf_network->pos_encoding()->padded_output_width()
-			<< "--[" << std::string(network_config["otype"])
-			<< "(neurons=" << (int)network_config["n_neurons"] << ",layers=" << ((int)network_config["n_hidden_layers"]+2) << ")"
-			<< "]-->" << 1
-			;
-
-		tlog::info()
-			<< "Color model:   " << n_dir_dims
-			<< "--[" << std::string(dir_encoding_config["otype"])
-			<< "]-->" << m_nerf_network->dir_encoding()->padded_output_width() << "+" << network_config.value("n_output_dims", 16u)
-			<< "--[" << std::string(rgb_network_config["otype"])
-			<< "(neurons=" << (int)rgb_network_config["n_neurons"] << ",layers=" << ((int)rgb_network_config["n_hidden_layers"]+2) << ")"
-			<< "]-->" << 3
-			;
-
-		// Create distortion map model
-		{
-			json& distortion_map_optimizer_config =  config.contains("distortion_map") && config["distortion_map"].contains("optimizer") ? config["distortion_map"]["optimizer"] : optimizer_config;
-
-			m_distortion.resolution = ivec2(32);
-			if (config.contains("distortion_map") && config["distortion_map"].contains("resolution")) {
-				from_json(config["distortion_map"]["resolution"], m_distortion.resolution);
-			}
-			m_distortion.map = std::make_shared<TrainableBuffer<2, 2, float>>(m_distortion.resolution);
-			m_distortion.optimizer.reset(create_optimizer<float>(distortion_map_optimizer_config));
-			m_distortion.trainer = std::make_shared<Trainer<float, float>>(m_distortion.map, m_distortion.optimizer, std::shared_ptr<Loss<float>>{create_loss<float>(loss_config)}, m_seed);
-		}
+		m_distortion.map = std::make_shared<TrainableBuffer<2, 2, float>>(m_distortion.resolution);
+		m_distortion.optimizer.reset(create_optimizer<float>(distortion_map_optimizer_config));
+		m_distortion.trainer = std::make_shared<Trainer<float, float>>(m_distortion.map, m_distortion.optimizer, std::shared_ptr<Loss<float>>{create_loss<float>(loss_config)}, m_seed);
 	}
 
 	size_t n_network_params = m_network->n_params() - n_encoding_params;
@@ -648,24 +624,22 @@ void Testbed::save_snapshot(const fs::path& path, bool include_optimizer_state, 
 
 	auto& snapshot = m_network_config["snapshot"];
 	snapshot["version"] = SNAPSHOT_FORMAT_VERSION;
-	snapshot["mode"] = to_string(m_testbed_mode);
+	snapshot["mode"] = "nerf";
 
-	if (m_testbed_mode == ETestbedMode::Nerf) {
-		snapshot["density_grid_size"] = NERF_GRIDSIZE();
+	snapshot["density_grid_size"] = NERF_GRIDSIZE();
 
-		GPUMemory<__half> density_grid_fp16(m_nerf.density_grid.size());
-		parallel_for_gpu(density_grid_fp16.size(), [density_grid=m_nerf.density_grid.data(), density_grid_fp16=density_grid_fp16.data()] __device__ (size_t i) {
-			density_grid_fp16[i] = (__half)density_grid[i];
-		});
+	GPUMemory<__half> density_grid_fp16(m_nerf.density_grid.size());
+	parallel_for_gpu(density_grid_fp16.size(), [density_grid=m_nerf.density_grid.data(), density_grid_fp16=density_grid_fp16.data()] __device__ (size_t i) {
+		density_grid_fp16[i] = (__half)density_grid[i];
+	});
 
-		snapshot["density_grid_binary"] = density_grid_fp16;
-		snapshot["density_grid_bitfield"] = m_nerf.density_grid_bitfield;
-		snapshot["nerf"]["aabb_scale"] = m_nerf.training.dataset.aabb_scale;
+	snapshot["density_grid_binary"] = density_grid_fp16;
+	snapshot["density_grid_bitfield"] = m_nerf.density_grid_bitfield;
+	snapshot["nerf"]["aabb_scale"] = m_nerf.training.dataset.aabb_scale;
 
-		snapshot["nerf"]["cam_pos_offset"] = m_nerf.training.cam_pos_offset;
-		snapshot["nerf"]["cam_rot_offset"] = m_nerf.training.cam_rot_offset;
-		snapshot["nerf"]["extra_dims_opt"] = m_nerf.training.extra_dims_opt;
-	}
+	snapshot["nerf"]["cam_pos_offset"] = m_nerf.training.cam_pos_offset;
+	snapshot["nerf"]["cam_rot_offset"] = m_nerf.training.cam_rot_offset;
+	snapshot["nerf"]["extra_dims_opt"] = m_nerf.training.extra_dims_opt;
 
 	snapshot["training_step"] = m_training_step;
 	snapshot["loss"] = m_loss_scalar.val();
@@ -687,12 +661,10 @@ void Testbed::save_snapshot(const fs::path& path, bool include_optimizer_state, 
 
 	snapshot["camera"]["aperture_size"] = m_aperture_size;
 
-	if (m_testbed_mode == ETestbedMode::Nerf) {
-		snapshot["nerf"]["rgb"]["rays_per_batch"] = m_nerf.training.counters_rgb.rays_per_batch;
-		snapshot["nerf"]["rgb"]["measured_batch_size"] = m_nerf.training.counters_rgb.measured_batch_size;
-		snapshot["nerf"]["rgb"]["measured_batch_size_before_compaction"] = m_nerf.training.counters_rgb.measured_batch_size_before_compaction;
-		snapshot["nerf"]["dataset"] = m_nerf.training.dataset;
-	}
+	snapshot["nerf"]["rgb"]["rays_per_batch"] = m_nerf.training.counters_rgb.rays_per_batch;
+	snapshot["nerf"]["rgb"]["measured_batch_size"] = m_nerf.training.counters_rgb.measured_batch_size;
+	snapshot["nerf"]["rgb"]["measured_batch_size_before_compaction"] = m_nerf.training.counters_rgb.measured_batch_size_before_compaction;
+	snapshot["nerf"]["dataset"] = m_nerf.training.dataset;
 
 	m_network_config_path = path;
 	std::ofstream f{native_string(m_network_config_path), std::ios::out | std::ios::binary};
@@ -729,63 +701,52 @@ void Testbed::load_snapshot(nlohmann::json config) {
 		throw std::runtime_error{"Snapshot uses an old format and can not be loaded."};
 	}
 
-	if (snapshot.contains("mode")) {
-		set_mode(mode_from_string(snapshot["mode"]));
-	} else if (snapshot.contains("nerf")) {
-		// To be able to load old NeRF snapshots that don't specify their mode yet
-		set_mode(ETestbedMode::Nerf);
-	} else if (m_testbed_mode == ETestbedMode::None) {
-		throw std::runtime_error{"Unknown snapshot mode. Snapshot must be regenerated with a new version of instant-ngp."};
-	}
-
 	m_aabb = snapshot.value("aabb", m_aabb);
 	m_bounding_radius = snapshot.value("bounding_radius", m_bounding_radius);
 
-	if (m_testbed_mode == ETestbedMode::Nerf) {
-		if (snapshot["density_grid_size"] != NERF_GRIDSIZE()) {
-			throw std::runtime_error{"Incompatible grid size."};
+	if (snapshot["density_grid_size"] != NERF_GRIDSIZE()) {
+		throw std::runtime_error{"Incompatible grid size."};
+	}
+
+	m_nerf.training.counters_rgb.rays_per_batch = snapshot["nerf"]["rgb"]["rays_per_batch"];
+	m_nerf.training.counters_rgb.measured_batch_size = snapshot["nerf"]["rgb"]["measured_batch_size"];
+	m_nerf.training.counters_rgb.measured_batch_size_before_compaction = snapshot["nerf"]["rgb"]["measured_batch_size_before_compaction"];
+
+	// If we haven't got a nerf dataset loaded, load dataset metadata from the snapshot
+	// and render using just that.
+	if (m_data_path.empty() && snapshot["nerf"].contains("dataset")) {
+		m_nerf.training.dataset = snapshot["nerf"]["dataset"];
+		load_nerf(m_data_path);
+	} else {
+		if (snapshot["nerf"].contains("aabb_scale")) {
+			m_nerf.training.dataset.aabb_scale = snapshot["nerf"]["aabb_scale"];
 		}
 
-		m_nerf.training.counters_rgb.rays_per_batch = snapshot["nerf"]["rgb"]["rays_per_batch"];
-		m_nerf.training.counters_rgb.measured_batch_size = snapshot["nerf"]["rgb"]["measured_batch_size"];
-		m_nerf.training.counters_rgb.measured_batch_size_before_compaction = snapshot["nerf"]["rgb"]["measured_batch_size_before_compaction"];
-
-		// If we haven't got a nerf dataset loaded, load dataset metadata from the snapshot
-		// and render using just that.
-		if (m_data_path.empty() && snapshot["nerf"].contains("dataset")) {
-			m_nerf.training.dataset = snapshot["nerf"]["dataset"];
-			load_nerf(m_data_path);
-		} else {
-			if (snapshot["nerf"].contains("aabb_scale")) {
-				m_nerf.training.dataset.aabb_scale = snapshot["nerf"]["aabb_scale"];
-			}
-
-			if (snapshot["nerf"].contains("dataset")) {
-				m_nerf.training.dataset.n_extra_learnable_dims = snapshot["nerf"]["dataset"].value("n_extra_learnable_dims", m_nerf.training.dataset.n_extra_learnable_dims);
-			}
+		if (snapshot["nerf"].contains("dataset")) {
+			m_nerf.training.dataset.n_extra_learnable_dims = snapshot["nerf"]["dataset"].value("n_extra_learnable_dims", m_nerf.training.dataset.n_extra_learnable_dims);
 		}
+	}
 
-		load_nerf_post();
+	load_nerf_post();
 
-		GPUMemory<__half> density_grid_fp16 = snapshot["density_grid_binary"];
-		m_nerf.density_grid.resize(density_grid_fp16.size());
+	GPUMemory<__half> density_grid_fp16 = snapshot["density_grid_binary"];
+	m_nerf.density_grid.resize(density_grid_fp16.size());
 
-		parallel_for_gpu(density_grid_fp16.size(), [density_grid=m_nerf.density_grid.data(), density_grid_fp16=density_grid_fp16.data()] __device__ (size_t i) {
-			density_grid[i] = (float)density_grid_fp16[i];
-		});
+	parallel_for_gpu(density_grid_fp16.size(), [density_grid=m_nerf.density_grid.data(), density_grid_fp16=density_grid_fp16.data()] __device__ (size_t i) {
+		density_grid[i] = (float)density_grid_fp16[i];
+	});
 
-		if (snapshot.contains("density_grid_bitfield")) {
-			tlog::info() << "Loading density_grid_bitfield";
-			m_nerf.density_grid_bitfield = snapshot["density_grid_bitfield"];
-		} else {
-			tlog::info() << "Computing density_grid_bitfield";
-		if (m_nerf.density_grid.size() == NERF_GRID_N_CELLS() * (m_nerf.max_cascade + 1)) {
-			update_density_grid_mean_and_bitfield(nullptr);
-		} else if (m_nerf.density_grid.size() != 0) {
-			// A size of 0 indicates that the density grid was never populated, which is a valid state of a (yet) untrained model.
-			throw std::runtime_error{"Incompatible number of grid cascades."};
-		}
-		}
+	if (snapshot.contains("density_grid_bitfield")) {
+		tlog::info() << "Loading density_grid_bitfield";
+		m_nerf.density_grid_bitfield = snapshot["density_grid_bitfield"];
+	} else {
+		tlog::info() << "Computing density_grid_bitfield";
+	if (m_nerf.density_grid.size() == NERF_GRID_N_CELLS() * (m_nerf.max_cascade + 1)) {
+		update_density_grid_mean_and_bitfield(nullptr);
+	} else if (m_nerf.density_grid.size() != 0) {
+		// A size of 0 indicates that the density grid was never populated, which is a valid state of a (yet) untrained model.
+		throw std::runtime_error{"Incompatible number of grid cascades."};
+	}
 	}
 
 	// Needs to happen after `load_nerf_post()`
@@ -824,18 +785,16 @@ void Testbed::load_snapshot(nlohmann::json config) {
 
 	m_trainer->deserialize(m_network_config["snapshot"]);
 
-	if (m_testbed_mode == ETestbedMode::Nerf) {
-		// If the snapshot appears to come from the same dataset as was already present
-		// (or none was previously present, in which case it came from the snapshot
-		// in the first place), load dataset-specific optimized quantities, such as
-		// extrinsics, exposure, latents.
-		if (snapshot["nerf"].contains("dataset") && m_nerf.training.dataset.is_same(snapshot["nerf"]["dataset"])) {
-			if (snapshot["nerf"].contains("cam_pos_offset")) m_nerf.training.cam_pos_offset = snapshot["nerf"].at("cam_pos_offset").get<std::vector<AdamOptimizer<vec3>>>();
-			if (snapshot["nerf"].contains("cam_rot_offset")) m_nerf.training.cam_rot_offset = snapshot["nerf"].at("cam_rot_offset").get<std::vector<RotationAdamOptimizer>>();
-			if (snapshot["nerf"].contains("extra_dims_opt")) m_nerf.training.extra_dims_opt = snapshot["nerf"].at("extra_dims_opt").get<std::vector<VarAdamOptimizer>>();
-			m_nerf.training.update_transforms();
-			m_nerf.training.update_extra_dims();
-		}
+	// If the snapshot appears to come from the same dataset as was already present
+	// (or none was previously present, in which case it came from the snapshot
+	// in the first place), load dataset-specific optimized quantities, such as
+	// extrinsics, exposure, latents.
+	if (snapshot["nerf"].contains("dataset") && m_nerf.training.dataset.is_same(snapshot["nerf"]["dataset"])) {
+		if (snapshot["nerf"].contains("cam_pos_offset")) m_nerf.training.cam_pos_offset = snapshot["nerf"].at("cam_pos_offset").get<std::vector<AdamOptimizer<vec3>>>();
+		if (snapshot["nerf"].contains("cam_rot_offset")) m_nerf.training.cam_rot_offset = snapshot["nerf"].at("cam_rot_offset").get<std::vector<RotationAdamOptimizer>>();
+		if (snapshot["nerf"].contains("extra_dims_opt")) m_nerf.training.extra_dims_opt = snapshot["nerf"].at("extra_dims_opt").get<std::vector<VarAdamOptimizer>>();
+		m_nerf.training.update_transforms();
+		m_nerf.training.update_extra_dims();
 	}
 
 	set_all_devices_dirty();

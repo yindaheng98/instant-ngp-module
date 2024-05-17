@@ -65,12 +65,12 @@ json merge_parent_network_config(const json& child, const fs::path& child_path);
 
 class Testbed {
 public:
-	Testbed(ETestbedMode mode = ETestbedMode::None);
+	Testbed();
 	~Testbed();
 
-	Testbed(ETestbedMode mode, const fs::path& data_path) : Testbed(mode) { load_training_data(data_path); }
-	Testbed(ETestbedMode mode, const fs::path& data_path, const fs::path& network_config_path) : Testbed(mode, data_path) { reload_network_from_file(network_config_path); }
-	Testbed(ETestbedMode mode, const fs::path& data_path, const nlohmann::json& network_config) : Testbed(mode, data_path) { reload_network_from_json(network_config); }
+	Testbed(const fs::path& data_path) : Testbed() { load_training_data(data_path); }
+	Testbed(const fs::path& data_path, const fs::path& network_config_path) : Testbed(data_path) { reload_network_from_file(network_config_path); }
+	Testbed(const fs::path& data_path, const nlohmann::json& network_config) : Testbed(data_path) { reload_network_from_json(network_config); }
 
 	bool clear_tmp_dir();
 	void update_imgui_paths();
@@ -78,7 +78,7 @@ public:
 	void reload_training_data();
 	void clear_training_data();
 
-	void set_mode(ETestbedMode mode);
+	void set_mode();
 
 	using distance_fun_t = std::function<void(uint32_t, const vec3*, float*, cudaStream_t)>;
 	using normals_fun_t = std::function<void(uint32_t, const vec3*, vec3*, cudaStream_t)>;
@@ -495,7 +495,6 @@ public:
 	bool m_training_data_available = false;
 	bool m_render = true;
 	int m_max_spp = 0;
-	ETestbedMode m_testbed_mode = ETestbedMode::None;
 	bool m_max_level_rand_training = false;
 
 	// Rendering stuff
@@ -715,60 +714,6 @@ public:
 		void set_rendering_extra_dims(const std::vector<float>& vals);
 		std::vector<float> get_rendering_extra_dims_cpu() const;
 	} m_nerf;
-
-	enum EDataType {
-		Float,
-		Half,
-	};
-
-	struct Image {
-		GPUMemory<char> data;
-
-		EDataType type = EDataType::Float;
-		ivec2 resolution = ivec2(0);
-
-		GPUMemory<vec2> render_coords;
-		GPUMemory<vec3> render_out;
-
-		struct Training {
-			GPUMemory<float> positions_tmp;
-			GPUMemory<vec2> positions;
-			GPUMemory<vec3> targets;
-
-			bool snap_to_pixel_centers = true;
-			bool linear_colors = false;
-		} training  = {};
-
-		ERandomMode random_mode = ERandomMode::Stratified;
-	} m_image;
-
-	struct VolPayload {
-		vec3 dir;
-		vec4 col;
-		uint32_t pixidx;
-	};
-
-	struct Volume {
-		float albedo = 0.95f;
-		float scattering = 0.f;
-		float inv_distance_scale = 100.f;
-		GPUMemory<char> nanovdb_grid;
-		GPUMemory<uint8_t> bitgrid;
-		float global_majorant = 1.f;
-		vec3 world2index_offset = {0.0f, 0.0f, 0.0f};
-		float world2index_scale = 1.f;
-
-		struct Training {
-			GPUMemory<vec3> positions = {};
-			GPUMemory<vec4> targets = {};
-		} training = {};
-
-		// tracing state
-		GPUMemory<vec3> pos[2] = {};
-		GPUMemory<VolPayload> payload[2] = {};
-		GPUMemory<uint32_t> hit_counter = {};
-		GPUMemory<vec4> radiance_and_density;
-	} m_volume;
 
 	float m_camera_velocity = 1.0f;
 	EColorSpace m_color_space = EColorSpace::Linear;

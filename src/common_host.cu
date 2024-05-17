@@ -143,35 +143,6 @@ bool ends_with_case_insensitive(const std::string& str, const std::string& endin
 	return ends_with(to_lower(str), to_lower(ending));
 }
 
-ETestbedMode mode_from_scene(const std::string& scene) {
-	fs::path scene_path = scene;
-	if (!scene_path.exists()) {
-		return ETestbedMode::None;
-	}
-
-	if (scene_path.is_directory() || equals_case_insensitive(scene_path.extension(), "json")) {
-		return ETestbedMode::Nerf;
-	} else {
-		return ETestbedMode::None;
-	}
-}
-
-ETestbedMode mode_from_string(const std::string& str) {
-	if (equals_case_insensitive(str, "nerf")) {
-		return ETestbedMode::Nerf;
-	} else {
-		return ETestbedMode::None;
-	}
-}
-
-std::string to_string(ETestbedMode mode) {
-	switch (mode) {
-		case ETestbedMode::Nerf: return "nerf";
-		case ETestbedMode::None: return "none";
-		default: throw std::runtime_error{fmt::format("Can not convert mode {} to string.", (int)mode)};
-	}
-}
-
 static const stbi_io_callbacks istream_stbi_callbacks = {
 	// Read
 	[](void* context, char* data, int size) {

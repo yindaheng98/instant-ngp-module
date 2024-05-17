@@ -2269,7 +2269,6 @@ void Testbed::Nerf::Training::update_transforms(int first, int last) {
 
 void Testbed::create_empty_nerf_dataset(size_t n_images, int aabb_scale, bool is_hdr) {
 	m_data_path = {};
-	set_mode(ETestbedMode::Nerf);
 	m_nerf.training.dataset = ngp::create_empty_nerf_dataset(n_images, aabb_scale, is_hdr);
 	load_nerf(m_data_path);
 	m_nerf.training.n_images_for_training = 0;
@@ -3136,20 +3135,18 @@ void Testbed::compute_mesh_vertex_colors() {
 	m_mesh.vert_colors.resize(n_verts);
 	m_mesh.vert_colors.memset(0);
 
-	if (m_testbed_mode == ETestbedMode::Nerf) {
-		const float* extra_dims_gpu = m_nerf.get_rendering_extra_dims(m_stream.get());
+	const float* extra_dims_gpu = m_nerf.get_rendering_extra_dims(m_stream.get());
 
-		const uint32_t floats_per_coord = sizeof(NerfCoordinate) / sizeof(float) + m_nerf_network->n_extra_dims();
-		const uint32_t extra_stride = m_nerf_network->n_extra_dims() * sizeof(float);
-		GPUMemory<float> coords(n_verts * floats_per_coord);
-		GPUMemory<float> mlp_out(n_verts * 4);
+	const uint32_t floats_per_coord = sizeof(NerfCoordinate) / sizeof(float) + m_nerf_network->n_extra_dims();
+	const uint32_t extra_stride = m_nerf_network->n_extra_dims() * sizeof(float);
+	GPUMemory<float> coords(n_verts * floats_per_coord);
+	GPUMemory<float> mlp_out(n_verts * 4);
 
-		GPUMatrix<float> positions_matrix((float*)coords.data(), floats_per_coord, n_verts);
-		GPUMatrix<float> color_matrix(mlp_out.data(), 4, n_verts);
-		linear_kernel(generate_nerf_network_inputs_from_positions, 0, m_stream.get(), n_verts, m_aabb, m_mesh.verts.data(), PitchedPtr<NerfCoordinate>((NerfCoordinate*)coords.data(), 1, 0, extra_stride), extra_dims_gpu);
-		m_network->inference(m_stream.get(), positions_matrix, color_matrix);
-		linear_kernel(extract_srgb_with_activation, 0, m_stream.get(), n_verts * 3, 3, mlp_out.data(), (float*)m_mesh.vert_colors.data(), m_nerf.rgb_activation, m_nerf.training.linear_colors);
-	}
+	GPUMatrix<float> positions_matrix((float*)coords.data(), floats_per_coord, n_verts);
+	GPUMatrix<float> color_matrix(mlp_out.data(), 4, n_verts);
+	linear_kernel(generate_nerf_network_inputs_from_positions, 0, m_stream.get(), n_verts, m_aabb, m_mesh.verts.data(), PitchedPtr<NerfCoordinate>((NerfCoordinate*)coords.data(), 1, 0, extra_stride), extra_dims_gpu);
+	m_network->inference(m_stream.get(), positions_matrix, color_matrix);
+	linear_kernel(extract_srgb_with_activation, 0, m_stream.get(), n_verts * 3, 3, mlp_out.data(), (float*)m_mesh.vert_colors.data(), m_nerf.rgb_activation, m_nerf.training.linear_colors);
 }
 
 GPUMemory<float> Testbed::get_density_on_grid(ivec3 res3d, const BoundingBox& aabb, const mat3& render_aabb_to_local) {
@@ -3157,9 +3154,8 @@ GPUMemory<float> Testbed::get_density_on_grid(ivec3 res3d, const BoundingBox& aa
 	GPUMemory<float> density(n_elements);
 
 	const uint32_t batch_size = std::min(n_elements, 1u<<20);
-	bool nerf_mode = m_testbed_mode == ETestbedMode::Nerf;
 
-	const uint32_t padded_output_width = nerf_mode ? m_nerf_network->padded_density_output_width() : m_network->padded_output_width();
+	const uint32_t padded_output_width = m_nerf_network->padded_density_output_width();
 
 	GPUMemoryArena::Allocation alloc;
 	auto scratch = allocate_workspace_and_distribute<
@@ -3174,7 +3170,7 @@ GPUMemory<float> Testbed::get_density_on_grid(ivec3 res3d, const BoundingBox& aa
 	const dim3 blocks = { div_round_up((uint32_t)res3d.x, threads.x), div_round_up((uint32_t)res3d.y, threads.y), div_round_up((uint32_t)res3d.z, threads.z) };
 
 	BoundingBox unit_cube = BoundingBox{vec3(0.0f), vec3(1.0f)};
-	generate_grid_samples_nerf_uniform<<<blocks, threads, 0, m_stream.get()>>>(res3d, m_nerf.density_grid_ema_step, aabb, render_aabb_to_local, nerf_mode ? m_aabb : unit_cube , positions);
+	generate_grid_samples_nerf_uniform<<<blocks, threads, 0, m_stream.get()>>>(res3d, m_nerf.density_grid_ema_step, aabb, render_aabb_to_local, m_aabb, positions);
 
 	// Only process 1m elements at a time
 	for (uint32_t offset = 0; offset < n_elements; offset += batch_size) {
@@ -3183,11 +3179,7 @@ GPUMemory<float> Testbed::get_density_on_grid(ivec3 res3d, const BoundingBox& aa
 		GPUMatrix<network_precision_t, RM> density_matrix(mlp_out, padded_output_width, local_batch_size);
 
 		GPUMatrix<float> positions_matrix((float*)(positions + offset), sizeof(NerfPosition)/sizeof(float), local_batch_size);
-		if (nerf_mode) {
-			m_nerf_network->density(m_stream.get(), positions_matrix, density_matrix);
-		} else {
-			m_network->inference_mixed_precision(m_stream.get(), positions_matrix, density_matrix);
-		}
+		m_nerf_network->density(m_stream.get(), positions_matrix, density_matrix);
 		linear_kernel(grid_samples_half_to_float, 0, m_stream.get(),
 			local_batch_size,
 			m_aabb,
@@ -3195,7 +3187,7 @@ GPUMemory<float> Testbed::get_density_on_grid(ivec3 res3d, const BoundingBox& aa
 			mlp_out,
 			m_nerf.density_activation,
 			positions + offset,
-			nerf_mode ? m_nerf.density_grid.data() : nullptr,
+			m_nerf.density_grid.data(),
 			m_nerf.max_cascade
 		);
 	}

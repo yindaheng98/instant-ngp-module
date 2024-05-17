@@ -77,10 +77,6 @@ void Testbed::train(uint32_t batch_size) {
 		return;
 	}
 
-	if (m_testbed_mode == ETestbedMode::None) {
-		throw std::runtime_error{"Cannot train without a mode."};
-	}
-
 	set_all_devices_dirty();
 
 	// If we don't have a trainer, as can happen when having loaded training data or changed modes without having
@@ -92,12 +88,10 @@ void Testbed::train(uint32_t batch_size) {
 		}
 	}
 
-	if (m_testbed_mode == ETestbedMode::Nerf) {
-		if (m_nerf.training.optimize_extra_dims) {
-			if (m_nerf.training.dataset.n_extra_learnable_dims == 0) {
-				m_nerf.training.dataset.n_extra_learnable_dims = 16;
-				reset_network();
-			}
+	if (m_nerf.training.optimize_extra_dims) {
+		if (m_nerf.training.dataset.n_extra_learnable_dims == 0) {
+			m_nerf.training.dataset.n_extra_learnable_dims = 16;
+			reset_network();
 		}
 	}
 
@@ -106,17 +100,14 @@ void Testbed::train(uint32_t batch_size) {
 		reset_accumulation(false, false);
 	}
 
-	uint32_t n_prep_to_skip = m_testbed_mode == ETestbedMode::Nerf ? clamp(m_training_step / 16u, 1u, 16u) : 1u;
+	uint32_t n_prep_to_skip = clamp(m_training_step / 16u, 1u, 16u);
 	if (m_training_step % n_prep_to_skip == 0) {
 		auto start = std::chrono::steady_clock::now();
 		ScopeGuard timing_guard{[&]() {
 			m_training_prep_ms.update(std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now()-start).count() / n_prep_to_skip);
 		}};
 
-		switch (m_testbed_mode) {
-			case ETestbedMode::Nerf: training_prep_nerf(batch_size, m_stream.get()); break;
-			default: throw std::runtime_error{"Invalid training mode."};
-		}
+		training_prep_nerf(batch_size, m_stream.get());
 
 		CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
 	}
@@ -138,10 +129,7 @@ void Testbed::train(uint32_t batch_size) {
 			m_training_ms.update(std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now()-start).count());
 		}};
 
-		switch (m_testbed_mode) {
-			case ETestbedMode::Nerf: train_nerf(batch_size, get_loss_scalar, m_stream.get()); break;
-			default: throw std::runtime_error{"Invalid training mode."};
-		}
+		train_nerf(batch_size, get_loss_scalar, m_stream.get());
 
 		CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream.get()));
 	}

@@ -46,10 +46,6 @@ std::string native_string(const fs::path& path);
 bool ends_with(const std::string& str, const std::string& ending);
 bool ends_with_case_insensitive(const std::string& str, const std::string& ending);
 
-ETestbedMode mode_from_scene(const std::string& scene);
-ETestbedMode mode_from_string(const std::string& str);
-std::string to_string(ETestbedMode);
-
 inline std::string replace_all(std::string str, const std::string& a, const std::string& b) {
 	std::string::size_type n = 0;
 	while ((n = str.find(a, n)) != std::string::npos) {

@@ -129,11 +129,6 @@ enum class EDlssQuality : int {
 static constexpr const char* DlssQualityStr = "UltraPerformance\0MaxPerformance\0Balanced\0MaxQuality\0UltraQuality\0Invalid\0None\0\0";
 static constexpr const char* DlssQualityStrArray[] = {"UltraPerformance", "MaxPerformance", "Balanced", "MaxQuality", "UltraQuality", "Invalid", "None"};
 
-enum class ETestbedMode : int {
-	Nerf,
-	None,
-};
-
 enum class EMlpAlgorithm : int {
 	MMA,
 	FMA,
