@@ -62,10 +62,8 @@ void Testbed::enable_residual_regulization(network_precision_t l2_reg) {
 void Testbed::set_mode() {
 
 	// Reset mode-specific members
-	m_image = {};
 	m_mesh = {};
 	m_nerf = {};
-	m_volume = {};
 
 	// Kill training-related things
 	m_encoding = {};
