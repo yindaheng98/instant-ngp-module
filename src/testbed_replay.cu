@@ -328,13 +328,20 @@ void Testbed::save_image(CudaRenderBuffer& buffer) {
     auto in_resolution = buffer.in_resolution();
     auto width = in_resolution.x;
     auto height = in_resolution.y;
-	std::vector<float> result(height * width * 4);
-	cudaMemcpy2DFromArray(result.data(), width * sizeof(float) * 4, buffer.surface_provider().array(), 0, 0, width * sizeof(float) * 4, height, cudaMemcpyDeviceToHost);
-    tlog::info() << "save image to " << save_image_path;
+
+    tlog::info() << "save image and depth to " << save_image_path;
     fs::path save_path = native_string(string_sprintf(save_image_path.c_str(), the_frame_img));
     fs::create_directories(save_path.parent_path());
     std::ofstream f{native_string(string_sprintf(save_image_path.c_str(), the_frame_img)), std::ios::out | std::ios::binary};
-    f.write((char*)result.data(), result.size() * sizeof(float));
+
+	std::vector<float> result_rgb(height * width * 4);
+	cudaMemcpy2DFromArray(result_rgb.data(), width * sizeof(float) * 4, buffer.surface_provider().array(), 0, 0, width * sizeof(float) * 4, height, cudaMemcpyDeviceToHost);
+    f.write((char*)result_rgb.data(), result_rgb.size() * sizeof(float));
+    
+	std::vector<float> result_depth(height * width);
+	cudaMemcpy2DFromArray(result_depth.data(), width * sizeof(float) * 1, buffer.surface_provider_depth().array(), 0, 0, width * sizeof(float) * 1, height, cudaMemcpyDeviceToHost);
+    f.write((char*)result_depth.data(), result_depth.size() * sizeof(float));
+    
     the_frame_img++;
 }
 

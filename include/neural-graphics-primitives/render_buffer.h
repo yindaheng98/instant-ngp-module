@@ -264,6 +264,10 @@ public:
 		return *m_rgba_target;
 	}
 
+	SurfaceProvider& surface_provider_depth() {
+		return *m_depth_target;
+	}
+
 	void set_color_space(EColorSpace color_space) {
 		if (color_space != m_color_space) {
 			m_color_space = color_space;
